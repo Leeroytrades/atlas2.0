@@ -1,0 +1,36 @@
+# Technology
+AAPL
+MSFT
+NVDA
+META
+GOOGL
+AMZN
+TSLA
+AMD
+NFLX
+PLTR
+
+# ETFs
+SPY
+QQQ
+
+# Finance
+JPM
+BAC
+GS
+
+# Healthcare
+LLY
+JNJ
+UNH
+
+# Consumer
+COST
+WMT
+
+# AI & Software
+CRM
+ORCL
+SNOW
+PANW
+CRWD
