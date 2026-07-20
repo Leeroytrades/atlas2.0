@@ -1,100 +1,190 @@
 """
-Atlas AI Trading Assistant
+Atlas AI Trading Assistant 2.0
 
-SQLite Database
+SQLite Database Manager
 """
 
-from pathlib import Path
+from __future__ import annotations
+
 import sqlite3
 
+from pathlib import Path
 
-DATABASE_FILE = Path("atlas.db")
+
+class Database:
 
 
-class AtlasDatabase:
+    def __init__(
+        self,
+        path: str = "atlas.db"
+    ):
 
-    def __init__(self):
+        self.path = Path(path)
 
-        self.connection = sqlite3.connect(DATABASE_FILE)
+        self.connection = sqlite3.connect(
+            self.path
+        )
 
         self.connection.row_factory = sqlite3.Row
 
         self.create_tables()
 
-    def create_tables(self):
+        self.migrate()
+
+
+
+    def execute(
+        self,
+        query: str,
+        parameters: tuple = ()
+    ):
 
         cursor = self.connection.cursor()
 
         cursor.execute(
+            query,
+            parameters
+        )
+
+        self.connection.commit()
+
+        return cursor
+
+
+
+    def fetch_one(
+        self,
+        query: str,
+        parameters: tuple = ()
+    ):
+
+        return self.execute(
+            query,
+            parameters
+        ).fetchone()
+
+
+
+    def fetch_all(
+        self,
+        query: str,
+        parameters: tuple = ()
+    ):
+
+        return self.execute(
+            query,
+            parameters
+        ).fetchall()
+
+
+
+    def create_tables(self):
+
+        self.execute(
             """
             CREATE TABLE IF NOT EXISTS trades (
 
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-                symbol TEXT,
+                symbol TEXT NOT NULL,
 
-                direction TEXT,
+                direction TEXT NOT NULL,
 
-                confidence REAL,
+                entry REAL NOT NULL,
 
-                entry REAL,
+                stop_loss REAL NOT NULL,
 
-                stop REAL,
+                take_profit REAL NOT NULL,
 
-                target REAL,
+                quantity INTEGER NOT NULL,
 
-                risk_reward REAL,
+                risk_amount REAL NOT NULL,
 
-                created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                reward_amount REAL NOT NULL,
+
+                risk_reward REAL NOT NULL,
+
+                confidence REAL NOT NULL,
+
+                opened TEXT NOT NULL
 
             )
             """
         )
 
-        self.connection.commit()
 
-    def save_trade(self, trade):
-
-        cursor = self.connection.cursor()
-
-        cursor.execute(
+        self.execute(
             """
-            INSERT INTO trades
-            (
-                symbol,
-                direction,
-                confidence,
-                entry,
-                stop,
-                target,
-                risk_reward
+            CREATE TABLE IF NOT EXISTS portfolio (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                account_balance REAL NOT NULL,
+
+                total_positions INTEGER NOT NULL,
+
+                exposure REAL NOT NULL,
+
+                timestamp TEXT NOT NULL
+
             )
-            VALUES
-            (?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                trade.symbol,
-                trade.direction,
-                trade.confidence,
-                trade.entry,
-                trade.stop,
-                trade.target,
-                trade.risk_reward,
-            ),
-        )
-
-        self.connection.commit()
-
-    def all_trades(self):
-
-        cursor = self.connection.cursor()
-
-        cursor.execute(
-            """
-            SELECT *
-            FROM trades
-            ORDER BY created DESC
             """
         )
 
-        return cursor.fetchall()
+
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS journal (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                event TEXT NOT NULL,
+
+                details TEXT,
+
+                timestamp TEXT NOT NULL
+
+            )
+            """
+        )
+
+
+
+    def migrate(self):
+
+        columns = [
+            row["name"]
+            for row in self.fetch_all(
+                "PRAGMA table_info(trades)"
+            )
+        ]
+
+
+        migrations = {
+
+            "status":
+                "ALTER TABLE trades ADD COLUMN status TEXT DEFAULT 'OPEN'",
+
+            "closed":
+                "ALTER TABLE trades ADD COLUMN closed TEXT",
+
+            "exit_price":
+                "ALTER TABLE trades ADD COLUMN exit_price REAL",
+
+            "profit_loss":
+                "ALTER TABLE trades ADD COLUMN profit_loss REAL",
+
+        }
+
+
+        for column, sql in migrations.items():
+
+            if column not in columns:
+
+                self.execute(sql)
+
+
+
+    def close(self):
+
+        self.connection.close()

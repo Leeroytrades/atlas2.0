@@ -2,70 +2,162 @@
 Atlas AI Trading Assistant 2.0
 
 Risk Manager
+
+Creates trade plans using:
+- Account risk
+- Position sizing
+- Stop placement
+- Reward targets
 """
 
 from __future__ import annotations
 
-import pandas as pd
+from atlas.trade import Trade
 
-from risk.trade import Trade
-from risk.position_sizer import calculate_position_size
-from risk.stop_loss import calculate_stop_loss
-from risk.take_profit import calculate_take_profit
+
+
+def get_current_price(df):
+
+    possible_columns = [
+
+        "Close",
+
+        "close",
+
+        "Adj Close",
+
+        "adj_close",
+
+    ]
+
+
+    for column in possible_columns:
+
+        if column in df.columns:
+
+            return float(
+                df[column].iloc[-1]
+            )
+
+
+    raise ValueError(
+        "No closing price column found in market data"
+    )
+
+
+
+def calculate_position_size(
+    account_balance: float,
+    risk_percent: float,
+    entry: float,
+    stop_loss: float,
+):
+
+    risk_amount = (
+        account_balance
+        *
+        (risk_percent / 100)
+    )
+
+
+    distance = abs(
+        entry - stop_loss
+    )
+
+
+    if distance == 0:
+
+        return 0, 0
+
+
+    quantity = int(
+        risk_amount / distance
+    )
+
+
+    return quantity, risk_amount
+
 
 
 def create_trade(
     symbol: str,
-    df: pd.DataFrame,
+    df,
     account_balance: float,
     risk_percent: float,
     direction: str,
     confidence: float,
-) -> Trade:
-    """
-    Build a complete trade plan.
-    """
+):
 
-    latest = df.iloc[-1]
+    entry = get_current_price(df)
 
-    entry = float(latest["Close"])
 
-    stop_loss = calculate_stop_loss(
-        df=df,
-        direction=direction,
+
+    if direction == "LONG":
+
+        stop_loss = entry * 0.95
+
+        take_profit = entry * 1.10
+
+
+    else:
+
+        stop_loss = entry * 1.05
+
+        take_profit = entry * 0.90
+
+
+
+    quantity, risk_amount = calculate_position_size(
+        account_balance,
+        risk_percent,
+        entry,
+        stop_loss,
     )
 
-    take_profit = calculate_take_profit(
-        entry=entry,
-        stop=stop_loss,
-        direction=direction,
-        rr=2.0,
+
+    if quantity <= 0:
+
+        return None
+
+
+
+    reward_amount = abs(
+        take_profit - entry
+    ) * quantity
+
+
+
+    risk_reward = (
+
+        reward_amount / risk_amount
+
+        if risk_amount
+
+        else 0
+
     )
 
-    quantity = calculate_position_size(
-        account_balance=account_balance,
-        risk_percent=risk_percent,
-        entry_price=entry,
-        stop_price=stop_loss,
-    )
-
-    risk_amount = abs(entry - stop_loss) * quantity
-    reward_amount = abs(take_profit - entry) * quantity
-
-    risk_reward = 0.0
-
-    if risk_amount > 0:
-        risk_reward = reward_amount / risk_amount
 
     return Trade(
+
         symbol=symbol,
+
         direction=direction,
+
         entry=entry,
+
         stop_loss=stop_loss,
+
         take_profit=take_profit,
+
         quantity=quantity,
+
         risk_amount=risk_amount,
+
         reward_amount=reward_amount,
+
         risk_reward=risk_reward,
+
         confidence=confidence,
+
     )

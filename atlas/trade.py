@@ -4,8 +4,12 @@ Atlas AI Trading Assistant 2.0
 Trade Model
 """
 
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
 from datetime import datetime
+
 
 
 @dataclass(slots=True)
@@ -31,4 +35,17 @@ class Trade:
 
     confidence: float
 
-    opened: datetime = datetime.now()
+
+    id: int | None = None
+
+    status: str = "OPEN"
+
+    opened: datetime = field(
+        default_factory=datetime.now
+    )
+
+    closed: datetime | None = None
+
+    exit_price: float | None = None
+
+    profit_loss: float | None = None
