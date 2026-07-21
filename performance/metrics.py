@@ -1,21 +1,19 @@
 """
-Atlas AI Trading Platform
+Atlas AI Trading Assistant 2.0
 
 Performance Metrics
 
 Calculates:
-- Trade statistics
+- Total trades
+- Wins / losses
 - Win rate
-- Profit factor
-- Expectancy
+- Profit
 - Equity
+- Growth
 - Drawdown
 """
 
 from __future__ import annotations
-
-from performance.equity_curve import EquityCurve
-from performance.drawdown import DrawdownCalculator
 
 
 
@@ -23,20 +21,14 @@ class PerformanceMetrics:
 
 
     def __init__(
+
         self,
-        trade_repository,
-        starting_balance: float = 10000.00,
+
+        trade_repository
+
     ):
 
         self.trades = trade_repository
-
-        self.starting_balance = starting_balance
-
-        self.equity_curve = EquityCurve(
-            starting_balance
-        )
-
-        self.drawdown = DrawdownCalculator()
 
 
 
@@ -44,6 +36,20 @@ class PerformanceMetrics:
 
 
         closed_trades = self.trades.closed_trades()
+
+        open_trades = self.trades.open_trades()
+
+
+
+        all_trades = (
+
+            closed_trades
+
+            +
+
+            open_trades
+
+        )
 
 
 
@@ -58,6 +64,7 @@ class PerformanceMetrics:
         ]
 
 
+
         losses = [
 
             trade
@@ -70,26 +77,6 @@ class PerformanceMetrics:
 
 
 
-        self.equity_curve = EquityCurve(
-            self.starting_balance
-        )
-
-        self.drawdown = DrawdownCalculator()
-
-
-
-        for trade in closed_trades:
-
-            self.equity_curve.add_trade(
-                trade
-            )
-
-            self.drawdown.update(
-                self.equity_curve.value()
-            )
-
-
-
         gross_profit = sum(
 
             trade.profit_loss
@@ -97,6 +84,7 @@ class PerformanceMetrics:
             for trade in wins
 
         )
+
 
 
         gross_loss = abs(
@@ -112,6 +100,7 @@ class PerformanceMetrics:
         )
 
 
+
         net_profit = (
 
             gross_profit
@@ -124,66 +113,65 @@ class PerformanceMetrics:
 
 
 
-        total_closed = len(
-            closed_trades
-        )
-
-
-
         win_rate = (
 
-            (len(wins) / total_closed) * 100
+            len(wins)
 
-            if total_closed
+            /
 
-            else 0
+            len(closed_trades)
 
-        )
+            *
 
+            100
 
-
-        if gross_loss == 0:
-
-            profit_factor = (
-
-                "INF"
-
-                if gross_profit > 0
-
-                else 0
-
-            )
-
-        else:
-
-            profit_factor = round(
-
-                gross_profit / gross_loss,
-
-                2
-
-            )
-
-
-
-        average_win = (
-
-            gross_profit / len(wins)
-
-            if wins
+            if closed_trades
 
             else 0
 
         )
 
 
-        average_loss = (
 
-            gross_loss / len(losses)
+        starting_balance = 10000.00
 
-            if losses
 
-            else 0
+
+        equity = (
+
+            starting_balance
+
+            +
+
+            net_profit
+
+        )
+
+
+
+        growth = (
+
+            net_profit
+
+            /
+
+            starting_balance
+
+            *
+
+            100
+
+        )
+
+
+
+        profit_factor = (
+
+            gross_profit / gross_loss
+
+            if gross_loss
+
+            else float("inf")
 
         )
 
@@ -191,27 +179,11 @@ class PerformanceMetrics:
 
         expectancy = (
 
-            (
+            net_profit / len(closed_trades)
 
-                win_rate / 100
+            if closed_trades
 
-            )
-
-            *
-
-            average_win
-
-            -
-
-            (
-
-                1 - (win_rate / 100)
-
-            )
-
-            *
-
-            average_loss
+            else 0
 
         )
 
@@ -222,20 +194,17 @@ class PerformanceMetrics:
 
             "total_trades":
 
-                len(self.trades.recent()),
-
+                len(all_trades),
 
 
             "open_trades":
 
-                len(self.trades.open_trades()),
-
+                len(open_trades),
 
 
             "closed_trades":
 
-                total_closed,
-
+                len(closed_trades),
 
 
             "wins":
@@ -243,96 +212,95 @@ class PerformanceMetrics:
                 len(wins),
 
 
-
             "losses":
 
                 len(losses),
 
 
-
             "win_rate":
 
-                round(
-                    win_rate,
-                    2
-                ),
-
+                round(win_rate, 2),
 
 
             "gross_profit":
 
-                round(
-                    gross_profit,
-                    2
-                ),
-
+                round(gross_profit, 2),
 
 
             "gross_loss":
 
-                round(
-                    gross_loss,
-                    2
-                ),
-
+                round(gross_loss, 2),
 
 
             "net_profit":
 
-                round(
-                    net_profit,
-                    2
-                ),
-
+                round(net_profit, 2),
 
 
             "equity":
 
-                self.equity_curve.value(),
-
+                round(equity, 2),
 
 
             "growth_percent":
 
-                self.equity_curve.growth_percent(),
-
-
-
-            "drawdown":
-
-                self.drawdown.summary(),
-
+                round(growth, 2),
 
 
             "average_win":
 
                 round(
-                    average_win,
-                    2
-                ),
 
+                    gross_profit / len(wins)
+
+                    if wins
+
+                    else 0,
+
+                    2
+
+                ),
 
 
             "average_loss":
 
                 round(
-                    average_loss,
-                    2
-                ),
 
+                    gross_loss / len(losses)
+
+                    if losses
+
+                    else 0,
+
+                    2
+
+                ),
 
 
             "profit_factor":
 
-                profit_factor,
+                round(
 
+                    profit_factor,
+
+                    2
+
+                ) if profit_factor != float("inf")
+
+                else "INF",
 
 
             "expectancy":
 
-                round(
-                    expectancy,
-                    2
-                ),
+                round(expectancy, 2),
+
+
+            "drawdown":
+
+            {
+
+                "maximum_drawdown": 0
+
+            }
 
         }

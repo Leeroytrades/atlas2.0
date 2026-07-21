@@ -1,31 +1,32 @@
 """
 Atlas AI Trading Platform
 
-Equity Display
+Equity Dashboard Display
 """
-
-from __future__ import annotations
 
 from rich.table import Table
 
+from performance.equity_chart import (
+    build_equity_curve,
+    calculate_growth,
+)
 
 
 def equity_table(
     history,
-    current_equity: float,
-    starting_balance: float = 10000.00
-):
-
+    current_equity: float = 0.0
+) -> Table:
+    """
+    Display equity statistics.
+    """
 
     table = Table(
         title="Equity Curve"
     )
 
-
     table.add_column(
         "Metric"
     )
-
 
     table.add_column(
         "Value",
@@ -33,21 +34,33 @@ def equity_table(
     )
 
 
+    starting_balance = 10000.00
 
-    growth = (
 
-        (current_equity - starting_balance)
+    try:
 
-        /
+        curve = build_equity_curve(
+            history
+        )
 
-        starting_balance
+    except Exception:
 
-        *
+        curve = []
 
-        100
 
-    )
+    try:
 
+        growth = calculate_growth(
+            current_equity
+        )
+
+    except Exception:
+
+        growth = (
+            ((current_equity - starting_balance)
+             / starting_balance)
+            * 100
+        )
 
 
     table.add_row(
@@ -55,22 +68,19 @@ def equity_table(
         f"${starting_balance:,.2f}"
     )
 
-
     table.add_row(
         "Current Equity",
         f"${current_equity:,.2f}"
     )
-
 
     table.add_row(
         "Growth",
         f"{growth:.2f}%"
     )
 
-
     table.add_row(
-        "History Points",
-        str(len(history))
+        "Equity Points",
+        str(len(curve))
     )
 
 

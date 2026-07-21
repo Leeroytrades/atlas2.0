@@ -1,29 +1,20 @@
 """
 Atlas AI Trading Assistant 2.0
 
-Dashboard Controller
+Main Dashboard Display
 """
-
-from __future__ import annotations
-
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.columns import Columns
-
+from rich.console import Group
 
 from display.scanner_table import scanner_table
-
 from display.portfolio import portfolio_table
-
 from display.performance import performance_table
-
 from display.equity import equity_table
 
 
-
 console = Console()
-
 
 
 def show_dashboard(
@@ -31,107 +22,146 @@ def show_dashboard(
     portfolio,
     metrics,
     equity_history=None,
-    current_equity=10000.00,
+    current_equity=0.0
 ):
+    """
+    Render Atlas dashboard.
+    """
 
 
-    console.clear()
-
-
-
-    # Scanner
+    # -------------------------
+    # Market Scanner
+    # -------------------------
 
     console.print(
-
         Panel(
-
             scanner_table(scans),
-
             title="Market Scanner"
-
         )
-
     )
 
 
-
+    # -------------------------
     # Portfolio
-
-    portfolio_display = portfolio_table(
-
-        portfolio
-
-    )
-
-
-
-    # Performance
-
-    performance_display = performance_table(
-
-        metrics
-
-    )
-
-
-
-    # Equity
-
-    if equity_history is None:
-
-        equity_history = []
-
-
-
-    equity_display = equity_table(
-
-        equity_history,
-
-        current_equity
-
-    )
-
-
+    # -------------------------
 
     console.print(
-
-        Columns(
-
-            [
-
-                Panel(
-
-                    portfolio_display,
-
-                    title="Portfolio"
-
-                ),
-
-
-                Panel(
-
-                    performance_display,
-
-                    title="Performance Analytics"
-
-                ),
-
-            ]
-
-        )
-
-    )
-
-
-
-    console.print(
-
         Panel(
+            portfolio_table(portfolio),
+            title="Portfolio"
+        )
+    )
 
-            equity_display,
 
-            title="Equity Curve"
+    # -------------------------
+    # Performance
+    # -------------------------
 
+    console.print(
+        Panel(
+            performance_table(metrics),
+            title="Performance Analytics"
+        )
+    )
+
+
+    # -------------------------
+    # Equity Statistics
+    # -------------------------
+
+    console.print(
+        Panel(
+            equity_table(
+                equity_history,
+                current_equity
+            ),
+            title="Equity Statistics"
+        )
+    )
+
+
+    # -------------------------
+    # Equity Curve
+    # -------------------------
+
+    if equity_history:
+
+        clean_history = []
+
+        for row in equity_history:
+
+            try:
+
+                if row[1] is not None:
+
+                    clean_history.append(
+                        (
+                            row[0],
+                            float(row[1])
+                        )
+                    )
+
+            except Exception:
+                continue
+
+
+        if clean_history:
+
+            chart = build_equity_panel(
+                clean_history
+            )
+
+            console.print(chart)
+
+        else:
+
+            console.print(
+                Panel(
+                    "No equity history available",
+                    title="Equity Curve"
+                )
+            )
+
+    else:
+
+        console.print(
+            Panel(
+                "No equity history available",
+                title="Equity Curve"
+            )
         )
 
+
+
+def build_equity_panel(history):
+
+    """
+    Simple equity history display.
+    """
+
+    from rich.table import Table
+
+
+    table = Table(
+        title="Equity Curve"
     )
+
+    table.add_column(
+        "Point"
+    )
+
+    table.add_column(
+        "Equity",
+        justify="right"
+    )
+
+
+    for index, item in enumerate(history):
+
+        table.add_row(
+            str(index + 1),
+            f"${item[1]:,.2f}"
+        )
+
+
+    return table

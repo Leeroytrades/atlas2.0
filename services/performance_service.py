@@ -1,11 +1,10 @@
 """
-Atlas AI Trading Platform
+Atlas AI Trading Assistant 2.0
 
 Performance Service
 
-Connects:
-- Engine
-- Performance calculations
+Connects performance calculations
+to the application layer.
 """
 
 from __future__ import annotations
