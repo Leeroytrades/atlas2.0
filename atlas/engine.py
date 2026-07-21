@@ -43,33 +43,35 @@ class AtlasEngine:
     def __init__(self):
 
 
-        # -----------------------------
         # Database
-        # -----------------------------
 
         self.database = Database()
 
 
 
-        # -----------------------------
-        # Core Session
-        # -----------------------------
+        # Journal
+
+        self.journal = JournalRepository(
+
+            self.database
+
+        )
+
+
+
+        # Core session
 
         self.session = Session()
 
 
 
-        # -----------------------------
-        # Market Scanner
-        # -----------------------------
+        # Scanner
 
         self.scanner = Scanner()
 
 
 
-        # -----------------------------
         # Repositories
-        # -----------------------------
 
         self.trade_repository = TradeRepository(
 
@@ -85,17 +87,8 @@ class AtlasEngine:
         )
 
 
-        self.journal_repository = JournalRepository(
 
-            self.database
-
-        )
-
-
-
-        # -----------------------------
-        # Risk / Positions
-        # -----------------------------
+        # Risk
 
         self.position_manager = PositionManager(
 
@@ -105,9 +98,7 @@ class AtlasEngine:
 
 
 
-        # -----------------------------
         # Performance
-        # -----------------------------
 
         self.metrics = PerformanceMetrics(
 
@@ -124,11 +115,37 @@ class AtlasEngine:
 
 
 
-        # -----------------------------
-        # Restore Portfolio
-        # -----------------------------
+        # Restore positions
 
         self.load_portfolio()
+
+
+
+        # Journal engine start
+
+        self.database.execute(
+
+            """
+            INSERT INTO journal
+            (
+                event,
+                details,
+                timestamp
+            )
+
+            VALUES (?,?,?)
+
+            """,
+
+            (
+                "ENGINE_START",
+                "Atlas Engine initialized",
+                __import__("datetime")
+                .datetime.now()
+                .isoformat()
+            )
+
+        )
 
 
 
@@ -137,7 +154,6 @@ class AtlasEngine:
     # ---------------------------------
 
     def scan_market(self):
-
 
         return self.scanner.scan(
 
@@ -167,7 +183,6 @@ class AtlasEngine:
         score = next(
 
             (
-
                 item
 
                 for item in results
@@ -192,15 +207,36 @@ class AtlasEngine:
 
 
 
+        self.journal.record_signal(
+
+            symbol=symbol,
+
+            direction=score.bias,
+
+            entry=0,
+
+            score=score.score,
+
+            confidence=score.confidence,
+
+            trend=getattr(score, "trend", 0),
+
+            momentum=getattr(score, "momentum", 0),
+
+            volatility=getattr(score, "volatility", 0),
+
+            volume=getattr(score, "volume", 0),
+
+            market_condition="SCANNED"
+
+        )
+
+
+
         if score.bias == "BUY":
 
 
-
-            if self.position_manager.can_open_position(
-
-                symbol
-
-            ):
+            if self.position_manager.can_open_position(symbol):
 
 
                 print(
@@ -208,7 +244,6 @@ class AtlasEngine:
                     f"Trade opportunity found: {symbol}"
 
                 )
-
 
 
             else:
@@ -233,54 +268,10 @@ class AtlasEngine:
 
 
     # ---------------------------------
-    # Record Journal Entry
-    # ---------------------------------
-
-    def record_signal(
-
-        self,
-
-        symbol: str,
-
-        direction: str,
-
-        entry: float,
-
-        score
-
-    ):
-
-
-        self.journal_repository.record_signal(
-
-            symbol=symbol,
-
-            direction=direction,
-
-            entry=entry,
-
-            score=score.score,
-
-            confidence=score.confidence,
-
-            trend=score.trend,
-
-            momentum=score.momentum,
-
-            volatility=score.volatility,
-
-            volume=score.volume
-
-        )
-
-
-
-    # ---------------------------------
     # Portfolio
     # ---------------------------------
 
     def portfolio(self):
-
 
         return self.session.portfolio
 
@@ -294,7 +285,6 @@ class AtlasEngine:
 
 
         for trade in trades:
-
 
             self.session.portfolio.add_trade(
 
@@ -332,6 +322,7 @@ class AtlasEngine:
         )
 
 
+
         return metrics
 
 
@@ -342,19 +333,7 @@ class AtlasEngine:
 
     def equity_history(self):
 
-
         return self.equity_history_repository.all()
-
-
-
-    # ---------------------------------
-    # Trade Journal
-    # ---------------------------------
-
-    def journal(self):
-
-
-        return self.journal_repository.history()
 
 
 
@@ -364,7 +343,34 @@ class AtlasEngine:
 
     def monitor_trades(self):
 
-        return None
+
+        trades = self.trade_repository.open_trades()
+
+
+        monitored = []
+
+
+        for trade in trades:
+
+
+            monitored.append(
+
+                trade
+
+            )
+
+
+        return monitored
+
+
+
+    # ---------------------------------
+    # Journal
+    # ---------------------------------
+
+    def journal_history(self):
+
+        return self.journal.history()
 
 
 
@@ -373,6 +379,5 @@ class AtlasEngine:
     # ---------------------------------
 
     def close(self):
-
 
         self.database.close()

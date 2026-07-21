@@ -11,8 +11,11 @@ from datetime import datetime
 
 class JournalRepository:
 
+
     def __init__(self, database):
+
         self.db = database
+
 
 
     def record_signal(
@@ -29,9 +32,18 @@ class JournalRepository:
         market_condition: str = "UNKNOWN"
     ):
 
+
+        now = datetime.now().isoformat()
+
+
         self.db.execute(
             """
-            INSERT INTO journal (
+            INSERT INTO journal
+            (
+
+                event,
+                details,
+                timestamp,
 
                 symbol,
                 direction,
@@ -43,27 +55,55 @@ class JournalRepository:
                 volatility,
                 volume,
                 market_condition,
+                outcome,
+                profit_loss,
                 created
 
             )
 
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 
             """,
+
             (
+
+                "SIGNAL_GENERATED",
+
+                f"{symbol} {direction} score={score} confidence={confidence}",
+
+                now,
+
                 symbol,
+
                 direction,
+
                 entry,
+
                 score,
+
                 confidence,
+
                 trend,
+
                 momentum,
+
                 volatility,
+
                 volume,
+
                 market_condition,
-                datetime.now().isoformat()
+
+                "OPEN",
+
+                0.0,
+
+                now
+
             )
+
         )
+
 
 
     def close_trade(
@@ -73,6 +113,7 @@ class JournalRepository:
         profit_loss: float,
         outcome: str
     ):
+
 
         self.db.execute(
             """
@@ -87,13 +128,16 @@ class JournalRepository:
             WHERE id=?
 
             """,
+
             (
                 exit_price,
                 profit_loss,
                 outcome,
                 journal_id
             )
+
         )
+
 
 
     def history(self):
@@ -110,13 +154,16 @@ class JournalRepository:
         )
 
 
+
     def total_trades(self):
 
         result = self.db.fetch_one(
             """
-            SELECT COUNT(*) as total
+            SELECT COUNT(*) AS total
 
             FROM journal
+
+            WHERE event='SIGNAL_GENERATED'
 
             """
         )
@@ -124,11 +171,12 @@ class JournalRepository:
         return result["total"]
 
 
+
     def winners(self):
 
         result = self.db.fetch_one(
             """
-            SELECT COUNT(*) as wins
+            SELECT COUNT(*) AS wins
 
             FROM journal
 
@@ -140,14 +188,20 @@ class JournalRepository:
         return result["wins"]
 
 
+
     def win_rate(self):
 
         total = self.total_trades()
 
         if total == 0:
+
             return 0
 
+
         return round(
+
             (self.winners() / total) * 100,
+
             2
+
         )
