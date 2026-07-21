@@ -11,6 +11,7 @@ Controls:
 - Risk
 - Performance
 - Equity tracking
+- Trade Journal
 """
 
 from __future__ import annotations
@@ -21,6 +22,8 @@ from database.database import Database
 from database.trades import TradeRepository
 
 from database.equity_history import EquityHistoryRepository
+
+from database.journal import JournalRepository
 
 from services.performance_service import PerformanceService
 
@@ -40,25 +43,33 @@ class AtlasEngine:
     def __init__(self):
 
 
+        # -----------------------------
         # Database
+        # -----------------------------
 
         self.database = Database()
 
 
 
-        # Core session
+        # -----------------------------
+        # Core Session
+        # -----------------------------
 
         self.session = Session()
 
 
 
-        # Market scanner
+        # -----------------------------
+        # Market Scanner
+        # -----------------------------
 
         self.scanner = Scanner()
 
 
 
+        # -----------------------------
         # Repositories
+        # -----------------------------
 
         self.trade_repository = TradeRepository(
 
@@ -74,8 +85,17 @@ class AtlasEngine:
         )
 
 
+        self.journal_repository = JournalRepository(
 
-        # Risk / positions
+            self.database
+
+        )
+
+
+
+        # -----------------------------
+        # Risk / Positions
+        # -----------------------------
 
         self.position_manager = PositionManager(
 
@@ -85,7 +105,9 @@ class AtlasEngine:
 
 
 
+        # -----------------------------
         # Performance
+        # -----------------------------
 
         self.metrics = PerformanceMetrics(
 
@@ -102,7 +124,9 @@ class AtlasEngine:
 
 
 
-        # Restore portfolio
+        # -----------------------------
+        # Restore Portfolio
+        # -----------------------------
 
         self.load_portfolio()
 
@@ -111,7 +135,6 @@ class AtlasEngine:
     # ---------------------------------
     # Market Scanner
     # ---------------------------------
-
 
     def scan_market(self):
 
@@ -127,7 +150,6 @@ class AtlasEngine:
     # ---------------------------------
     # Analyse Symbol
     # ---------------------------------
-
 
     def analyse(
 
@@ -188,6 +210,7 @@ class AtlasEngine:
                 )
 
 
+
             else:
 
 
@@ -210,9 +233,51 @@ class AtlasEngine:
 
 
     # ---------------------------------
-    # Portfolio
+    # Record Journal Entry
     # ---------------------------------
 
+    def record_signal(
+
+        self,
+
+        symbol: str,
+
+        direction: str,
+
+        entry: float,
+
+        score
+
+    ):
+
+
+        self.journal_repository.record_signal(
+
+            symbol=symbol,
+
+            direction=direction,
+
+            entry=entry,
+
+            score=score.score,
+
+            confidence=score.confidence,
+
+            trend=score.trend,
+
+            momentum=score.momentum,
+
+            volatility=score.volatility,
+
+            volume=score.volume
+
+        )
+
+
+
+    # ---------------------------------
+    # Portfolio
+    # ---------------------------------
 
     def portfolio(self):
 
@@ -242,7 +307,6 @@ class AtlasEngine:
     # ---------------------------------
     # Performance
     # ---------------------------------
-
 
     def performance(self):
 
@@ -276,7 +340,6 @@ class AtlasEngine:
     # Equity History
     # ---------------------------------
 
-
     def equity_history(self):
 
 
@@ -285,9 +348,19 @@ class AtlasEngine:
 
 
     # ---------------------------------
-    # Trade Monitoring
+    # Trade Journal
     # ---------------------------------
 
+    def journal(self):
+
+
+        return self.journal_repository.history()
+
+
+
+    # ---------------------------------
+    # Trade Monitoring
+    # ---------------------------------
 
     def monitor_trades(self):
 
@@ -299,7 +372,7 @@ class AtlasEngine:
     # Shutdown
     # ---------------------------------
 
-
     def close(self):
 
-        return None
+
+        self.database.close()

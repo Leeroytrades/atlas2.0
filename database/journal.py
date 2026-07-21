@@ -1,115 +1,153 @@
+"""
+Atlas AI Trading Assistant
+
+Trade Journal Repository
+"""
+
+from __future__ import annotations
+
 from datetime import datetime
-from database.database import Database
-from models.journal_entry import JournalEntry
 
 
 class JournalRepository:
-    """
-    Handles storage and retrieval of Atlas trade journal entries.
-    """
 
-    def __init__(self, database: Database):
-        self.database = database
-        self._create_table()
-
-    def _create_table(self):
-        query = """
-        CREATE TABLE IF NOT EXISTS journal (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-
-            symbol TEXT NOT NULL,
-            direction TEXT NOT NULL,
-
-            entry_price REAL NOT NULL,
-            exit_price REAL,
-
-            score INTEGER,
-            confidence REAL,
-
-            trend TEXT,
-            momentum TEXT,
-            volatility TEXT,
-            volume TEXT,
-
-            market_condition TEXT,
-
-            outcome TEXT,
-            profit_loss REAL,
-
-            notes TEXT,
-
-            created TEXT
-        )
-        """
-
-        self.database.connection.execute(query)
-        self.database.connection.commit()
+    def __init__(self, database):
+        self.db = database
 
 
-    def add(self, entry: JournalEntry):
-        query = """
-        INSERT INTO journal (
-            symbol,
-            direction,
-            entry_price,
-            exit_price,
-            score,
-            confidence,
-            trend,
-            momentum,
-            volatility,
-            volume,
-            market_condition,
-            outcome,
-            profit_loss,
-            notes,
-            created
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
+    def record_signal(
+        self,
+        symbol: str,
+        direction: str,
+        entry: float,
+        score: int,
+        confidence: float,
+        trend: int,
+        momentum: int,
+        volatility: int,
+        volume: int,
+        market_condition: str = "UNKNOWN"
+    ):
 
-        values = (
-            entry.symbol,
-            entry.direction,
-            entry.entry_price,
-            entry.exit_price,
-            entry.score,
-            entry.confidence,
-            entry.trend,
-            entry.momentum,
-            entry.volatility,
-            entry.volume,
-            entry.market_condition,
-            entry.outcome,
-            entry.profit_loss,
-            entry.notes,
-            entry.created.isoformat(),
+        self.db.execute(
+            """
+            INSERT INTO journal (
+
+                symbol,
+                direction,
+                entry_price,
+                score,
+                confidence,
+                trend,
+                momentum,
+                volatility,
+                volume,
+                market_condition,
+                created
+
+            )
+
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+
+            """,
+            (
+                symbol,
+                direction,
+                entry,
+                score,
+                confidence,
+                trend,
+                momentum,
+                volatility,
+                volume,
+                market_condition,
+                datetime.now().isoformat()
+            )
         )
 
-        self.database.connection.execute(query, values)
-        self.database.connection.commit()
+
+    def close_trade(
+        self,
+        journal_id: int,
+        exit_price: float,
+        profit_loss: float,
+        outcome: str
+    ):
+
+        self.db.execute(
+            """
+            UPDATE journal
+
+            SET
+
+                exit_price=?,
+                profit_loss=?,
+                outcome=?
+
+            WHERE id=?
+
+            """,
+            (
+                exit_price,
+                profit_loss,
+                outcome,
+                journal_id
+            )
+        )
 
 
-    def all(self):
-        query = """
-        SELECT *
-        FROM journal
-        ORDER BY id DESC
-        """
+    def history(self):
 
-        cursor = self.database.connection.execute(query)
+        return self.db.fetch_all(
+            """
+            SELECT *
 
-        return cursor.fetchall()
+            FROM journal
+
+            ORDER BY id DESC
+
+            """
+        )
 
 
-    def latest(self, limit=10):
-        query = """
-        SELECT *
-        FROM journal
-        ORDER BY id DESC
-        LIMIT ?
-        """
+    def total_trades(self):
 
-        cursor = self.database.connection.execute(query, (limit,))
+        result = self.db.fetch_one(
+            """
+            SELECT COUNT(*) as total
 
-        return cursor.fetchall()
+            FROM journal
+
+            """
+        )
+
+        return result["total"]
+
+
+    def winners(self):
+
+        result = self.db.fetch_one(
+            """
+            SELECT COUNT(*) as wins
+
+            FROM journal
+
+            WHERE outcome='WIN'
+
+            """
+        )
+
+        return result["wins"]
+
+
+    def win_rate(self):
+
+        total = self.total_trades()
+
+        if total == 0:
+            return 0
+
+        return round(
+            (self.winners() / total) * 100,
+            2
+        )
