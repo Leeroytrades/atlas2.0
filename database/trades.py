@@ -18,26 +18,15 @@ from datetime import datetime
 from atlas.trade import Trade
 
 
-
 class TradeRepository:
 
-
-    def __init__(
-        self,
-        database
-    ):
+    def __init__(self, database):
 
         self.database = database
 
-
-
-    def save(
-        self,
-        trade: Trade
-    ):
+    def save(self, trade: Trade):
 
         query = """
-
         INSERT INTO trades (
 
             symbol,
@@ -56,72 +45,51 @@ class TradeRepository:
         )
 
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-
         """
 
-
-        return self.database.execute(
+        cursor = self.database.execute(
 
             query,
 
             (
 
                 trade.symbol,
-
                 trade.direction,
-
                 trade.entry,
-
                 trade.stop_loss,
-
                 trade.take_profit,
-
                 trade.quantity,
-
                 trade.risk_amount,
-
                 trade.reward_amount,
-
                 trade.risk_reward,
-
                 trade.confidence,
-
                 trade.opened.isoformat(),
-
                 "OPEN",
 
             )
 
         )
 
+        trade.id = cursor.lastrowid
 
+        return trade
 
-    def update(
-        self,
-        trade
-    ):
+    def update(self, trade):
 
         query = """
-
         UPDATE trades
 
         SET
 
             status=?,
-
             closed=?,
-
             exit_price=?,
-
             profit_loss=?
 
         WHERE id=?
-
         """
 
-
-
-        return self.database.execute(
+        self.database.execute(
 
             query,
 
@@ -129,11 +97,9 @@ class TradeRepository:
 
                 trade.status,
 
-                (
-                    trade.closed.isoformat()
-                    if trade.closed
-                    else None
-                ),
+                trade.closed.isoformat()
+                if trade.closed
+                else None,
 
                 getattr(
                     trade,
@@ -153,36 +119,25 @@ class TradeRepository:
 
         )
 
+        return trade
 
-
-    def close_trade(
-        self,
-        trade,
-        exit_price: float
-    ):
+    def close_trade(self, trade, exit_price: float):
 
         if trade.direction == "LONG":
 
             profit_loss = (
 
-                exit_price
-                -
-                trade.entry
+                exit_price - trade.entry
 
             ) * trade.quantity
-
 
         else:
 
             profit_loss = (
 
-                trade.entry
-                -
-                exit_price
+                trade.entry - exit_price
 
             ) * trade.quantity
-
-
 
         trade.status = "CLOSED"
 
@@ -190,60 +145,62 @@ class TradeRepository:
 
         trade.exit_price = exit_price
 
-        trade.profit_loss = profit_loss
-
-
-        self.update(
-            trade
+        trade.profit_loss = round(
+            profit_loss,
+            2
         )
 
+        self.update(trade)
 
         return trade
 
-
-
-    def open_trades(
-        self
-    ):
+    def open_trades(self):
 
         query = """
-
         SELECT *
 
         FROM trades
 
         WHERE status='OPEN'
 
-        ORDER BY id DESC
-
+        ORDER BY opened ASC
         """
 
-
-
-        rows = self.database.fetch_all(
-            query
-        )
-
+        rows = self.database.fetch_all(query)
 
         return [
 
-            self._row_to_trade(
-                row
-            )
+            self._row_to_trade(row)
 
             for row in rows
 
         ]
 
-
-
-    def recent(
-        self,
-        limit=20
-    ):
+    def get_closed_trades(self):
 
         query = """
+        SELECT *
 
+        FROM trades
+
+        WHERE status='CLOSED'
+
+        ORDER BY closed ASC
+        """
+
+        rows = self.database.fetch_all(query)
+
+        return [
+
+            self._row_to_trade(row)
+
+            for row in rows
+
+        ]
+
+    def recent(self, limit=20):
+
+        query = """
         SELECT *
 
         FROM trades
@@ -251,30 +208,21 @@ class TradeRepository:
         ORDER BY id DESC
 
         LIMIT ?
-
         """
 
-
-
-        rows = self.database.fetch_all(
+        return self.database.fetch_all(
 
             query,
 
             (
+
                 limit,
+
             )
 
         )
 
-
-        return rows
-
-
-
-    def _row_to_trade(
-        self,
-        row
-    ):
+    def _row_to_trade(self, row):
 
         trade = Trade(
 
@@ -300,16 +248,28 @@ class TradeRepository:
 
         )
 
-
         trade.id = row["id"]
 
         trade.status = row["status"]
 
-        trade.closed = row["closed"]
+        trade.opened = datetime.fromisoformat(
+            row["opened"]
+        )
+
+        trade.closed = (
+
+            datetime.fromisoformat(
+                row["closed"]
+            )
+
+            if row["closed"]
+
+            else None
+
+        )
 
         trade.exit_price = row["exit_price"]
 
         trade.profit_loss = row["profit_loss"]
-
 
         return trade

@@ -1,92 +1,123 @@
 """
 Atlas AI Trading Assistant 2.0
 
-Performance Dashboard Panel
+Performance Display
 """
 
+from rich.panel import Panel
 from rich.table import Table
+from rich.text import Text
 
 
+def performance_panel(metrics, statistics=None, equity=None):
 
-def performance_table(
-    metrics
-):
+    statistics = statistics or {}
+    equity = equity or {}
 
     table = Table(
-        title="Performance Metrics"
+        show_header=False,
+        expand=True,
+        pad_edge=False
     )
 
-
-    table.add_column(
-        "Metric"
-    )
-
-    table.add_column(
-        "Value",
-        justify="right"
-    )
-
+    table.add_column(style="cyan")
+    table.add_column(justify="right")
 
     table.add_row(
         "Total Trades",
-        str(
-            metrics["total_trades"]
-        )
+        str(metrics.get("total_trades", 0))
     )
 
+    table.add_row(
+        "Open Trades",
+        str(metrics.get("open_trades", 0))
+    )
 
     table.add_row(
         "Closed Trades",
-        str(
-            metrics["closed_trades"]
-        )
+        str(metrics.get("closed_trades", 0))
     )
-
-
-    table.add_row(
-        "Wins",
-        str(
-            metrics["wins"]
-        )
-    )
-
-
-    table.add_row(
-        "Losses",
-        str(
-            metrics["losses"]
-        )
-    )
-
 
     table.add_row(
         "Win Rate",
-        f"{metrics['win_rate']:.2%}"
+        f'{metrics.get("win_rate",0):.2f}%'
     )
-
-
-    table.add_row(
-        "Total P/L",
-        f"${metrics['total_profit_loss']:.2f}"
-    )
-
-
-    table.add_row(
-        "Average Win",
-        f"${metrics['average_win']:.2f}"
-    )
-
-
-    table.add_row(
-        "Average Loss",
-        f"${metrics['average_loss']:.2f}"
-    )
-
 
     table.add_row(
         "Profit Factor",
-        f"{metrics['profit_factor']:.2f}"
+        f'{metrics.get("profit_factor",0):.2f}'
     )
 
+    table.add_row(
+        "Net Profit",
+        f'${metrics.get("net_profit",0):.2f}'
+    )
 
-    return table
+    table.add_row(
+        "Average Win",
+        f'${metrics.get("average_win",0):.2f}'
+    )
+
+    table.add_row(
+        "Average Loss",
+        f'${metrics.get("average_loss",0):.2f}'
+    )
+
+    table.add_row(
+        "Largest Win",
+        f'${metrics.get("largest_win",0):.2f}'
+    )
+
+    table.add_row(
+        "Largest Loss",
+        f'${metrics.get("largest_loss",0):.2f}'
+    )
+
+    table.add_row(
+        "Expectancy",
+        f'${metrics.get("expectancy",0):.2f}'
+    )
+
+    if equity:
+
+        table.add_section()
+
+        table.add_row(
+            "Starting Balance",
+            f'${equity.get("starting_balance",0):,.2f}'
+        )
+
+        table.add_row(
+            "Current Balance",
+            f'${equity.get("ending_balance",0):,.2f}'
+        )
+
+        table.add_row(
+            "Peak Balance",
+            f'${equity.get("peak_balance",0):,.2f}'
+        )
+
+        table.add_row(
+            "Max Drawdown",
+            f'${equity.get("max_drawdown",0):,.2f}'
+        )
+
+        table.add_row(
+            "Return",
+            f'${equity.get("total_return",0):,.2f}'
+        )
+
+    title = Text(
+        "Performance Analytics",
+        style="bold green"
+    )
+
+    return Panel(
+
+        table,
+
+        title=title,
+
+        border_style="green"
+
+    )

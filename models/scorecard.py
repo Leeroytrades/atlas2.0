@@ -1,7 +1,9 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
-Bull / Bear Scorecard Model
+Scorecard Model
+
+Represents the complete analysis for a symbol.
 """
 
 from __future__ import annotations
@@ -12,87 +14,101 @@ from dataclasses import dataclass
 @dataclass(slots=True)
 class Scorecard:
     """
-    Stores individual indicator scores and calculates
-    the overall Bull/Bear score.
+    Composite market analysis.
     """
 
-    # Trend
+    symbol: str = ""
+
     trend: int = 0
 
-    # Momentum
     momentum: int = 0
 
-    # Volatility
     volatility: int = 0
 
-    # Volume
     volume: int = 0
 
-    # Overall confidence
+    total_score: int = 0
+
     confidence: float = 0.0
 
-    @property
-    def total_score(self) -> int:
-        """
-        Total score.
+    bullish: bool = False
 
-        Maximum:
-            +100
+    bearish: bool = False
 
-        Minimum:
-            -100
-        """
+    signal: str = "HOLD"
 
-        score = (
-            self.trend
-            + self.momentum
-            + self.volatility
-            + self.volume
-        )
+    timeframe: str = ""
 
-        return max(-100, min(100, score))
+    notes: str = ""
 
     @property
     def bias(self) -> str:
 
-        score = self.total_score
-
-        if score >= 80:
-            return "STRONG BUY"
-
-        if score >= 60:
+        if self.bullish:
             return "BUY"
 
-        if score >= 20:
-            return "BULLISH"
-
-        if score <= -80:
-            return "STRONG SELL"
-
-        if score <= -60:
+        if self.bearish:
             return "SELL"
-
-        if score <= -20:
-            return "BEARISH"
 
         return "NEUTRAL"
 
     @property
-    def bullish(self) -> bool:
-        return self.total_score > 20
+    def strength(self) -> str:
+
+        score = self.total_score
+
+        if score >= 90:
+            return "EXTREME"
+
+        if score >= 80:
+            return "VERY STRONG"
+
+        if score >= 70:
+            return "STRONG"
+
+        if score >= 60:
+            return "MODERATE"
+
+        if score >= 50:
+            return "WEAK"
+
+        return "AVOID"
 
     @property
-    def bearish(self) -> bool:
-        return self.total_score < -20
+    def tradable(self) -> bool:
+
+        return self.total_score >= 70
 
     def summary(self) -> dict:
 
         return {
-            "Trend": self.trend,
-            "Momentum": self.momentum,
-            "Volatility": self.volatility,
-            "Volume": self.volume,
-            "Score": self.total_score,
-            "Bias": self.bias,
-            "Confidence": round(self.confidence * 100, 1),
+
+            "symbol": self.symbol,
+
+            "score": self.total_score,
+
+            "confidence": self.confidence,
+
+            "bias": self.bias,
+
+            "strength": self.strength,
+
+            "signal": self.signal,
+
+            "tradable": self.tradable,
+
         }
+
+    def __str__(self):
+
+        return (
+
+            f"{self.symbol} | "
+
+            f"{self.bias} | "
+
+            f"{self.total_score}/100 | "
+
+            f"{self.confidence:.1f}%"
+
+        )
