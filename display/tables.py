@@ -1,18 +1,66 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
 Dashboard Tables
 """
 
+from __future__ import annotations
+
 from rich.table import Table
 
 from models.scorecard import Scorecard
-
-from atlas.trade import Trade
-
+from models.trade import Trade
 
 
-def score_table(
+
+def scanner_table(
+    results
+) -> Table:
+
+    table = Table(
+        title="Market Scanner"
+    )
+
+
+    table.add_column(
+        "Symbol"
+    )
+
+    table.add_column(
+        "Score",
+        justify="right"
+    )
+
+    table.add_column(
+        "Bias"
+    )
+
+    table.add_column(
+        "Confidence",
+        justify="right"
+    )
+
+
+    for result in results:
+
+        table.add_row(
+
+            result.symbol,
+
+            str(result.score),
+
+            result.bias,
+
+            f"{result.confidence:.0%}",
+
+        )
+
+
+    return table
+
+
+
+def scorecard_table(
     score: Scorecard
 ) -> Table:
 
@@ -37,12 +85,25 @@ def score_table(
     for key, value in data.items():
 
         table.add_row(
+
             str(key),
+
             str(value)
+
         )
 
 
     return table
+
+
+
+def score_table(
+    score: Scorecard
+) -> Table:
+
+    return scorecard_table(
+        score
+    )
 
 
 
@@ -65,55 +126,40 @@ def trade_table(
     )
 
 
-    table.add_row(
-        "Symbol",
-        trade.symbol
-    )
+    rows = [
 
-    table.add_row(
-        "Direction",
-        trade.direction
-    )
+        ("Symbol", trade.symbol),
 
-    table.add_row(
-        "Entry",
-        f"{trade.entry:.2f}"
-    )
+        ("Direction", trade.direction),
 
-    table.add_row(
-        "Stop",
-        f"{trade.stop_loss:.2f}"
-    )
+        ("Entry", f"{trade.entry:.2f}"),
 
-    table.add_row(
-        "Target",
-        f"{trade.take_profit:.2f}"
-    )
+        ("Stop", f"{trade.stop_loss:.2f}"),
 
-    table.add_row(
-        "Quantity",
-        str(trade.quantity)
-    )
+        ("Target", f"{trade.take_profit:.2f}"),
 
-    table.add_row(
-        "Risk",
-        f"{trade.risk_amount:.2f}"
-    )
+        ("Quantity", str(trade.quantity)),
 
-    table.add_row(
-        "Reward",
-        f"{trade.reward_amount:.2f}"
-    )
+        ("Risk", f"{trade.risk_amount:.2f}"),
 
-    table.add_row(
-        "R:R",
-        f"{trade.risk_reward:.2f}"
-    )
+        ("Reward", f"{trade.reward_amount:.2f}"),
 
-    table.add_row(
-        "Confidence",
-        f"{trade.confidence:.0%}"
-    )
+        ("R:R", f"{trade.risk_reward:.2f}"),
+
+        ("Confidence", f"{trade.confidence:.0%}"),
+
+    ]
+
+
+    for field, value in rows:
+
+        table.add_row(
+
+            field,
+
+            value
+
+        )
 
 
     return table

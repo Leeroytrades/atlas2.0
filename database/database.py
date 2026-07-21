@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
 SQLite Database Manager
 """
@@ -9,6 +9,7 @@ from __future__ import annotations
 import sqlite3
 
 from pathlib import Path
+
 
 
 class Database:
@@ -80,6 +81,7 @@ class Database:
 
     def create_tables(self):
 
+
         self.execute(
             """
             CREATE TABLE IF NOT EXISTS trades (
@@ -113,6 +115,7 @@ class Database:
         )
 
 
+
         self.execute(
             """
             CREATE TABLE IF NOT EXISTS portfolio (
@@ -130,6 +133,7 @@ class Database:
             )
             """
         )
+
 
 
         self.execute(
@@ -150,31 +154,65 @@ class Database:
 
 
 
+        self.execute(
+            """
+            CREATE TABLE IF NOT EXISTS equity_history (
+
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+                trade_id INTEGER,
+
+                equity REAL NOT NULL,
+
+                timestamp TEXT NOT NULL
+
+            )
+            """
+        )
+
+
+
     def migrate(self):
 
+
         columns = [
+
             row["name"]
+
             for row in self.fetch_all(
+
                 "PRAGMA table_info(trades)"
+
             )
+
         ]
+
 
 
         migrations = {
 
+
             "status":
+
                 "ALTER TABLE trades ADD COLUMN status TEXT DEFAULT 'OPEN'",
 
+
             "closed":
+
                 "ALTER TABLE trades ADD COLUMN closed TEXT",
 
+
             "exit_price":
+
                 "ALTER TABLE trades ADD COLUMN exit_price REAL",
 
+
             "profit_loss":
+
                 "ALTER TABLE trades ADD COLUMN profit_loss REAL",
 
         }
+
 
 
         for column, sql in migrations.items():

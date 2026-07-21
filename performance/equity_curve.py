@@ -1,139 +1,181 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
-Equity Curve
+Equity Curve System
+
+Tracks:
+- Account growth
+- Balance history
+- Trade impact
 """
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
+from models.trade import Trade
+
+
+
+@dataclass
+class EquityPoint:
+    """
+    Single point on the equity curve.
+    """
+
+    trade_id: int | None
+
+    timestamp: str
+
+    equity: float
+
+
 
 class EquityCurve:
 
+
     def __init__(
-
         self,
-
-        trade_repository,
-
-        starting_balance=10000
-
+        starting_balance: float = 10000.00,
     ):
-
-        self.trades = trade_repository
 
         self.starting_balance = starting_balance
 
+        self.current_equity = starting_balance
 
-    def calculate(self):
-
-        trades = self.trades.get_closed_trades()
-
-        balance = self.starting_balance
-
-        peak = balance
-
-        max_drawdown = 0
-
-        history = []
+        self.history: list[EquityPoint] = []
 
 
-        for trade in trades:
 
-            pnl = trade.profit_loss or 0.0
+        self.history.append(
 
-            balance += pnl
+            EquityPoint(
 
-            peak = max(
+                trade_id=None,
 
-                peak,
+                timestamp="START",
 
-                balance
+                equity=starting_balance,
 
             )
 
-            drawdown = peak - balance
+        )
 
-            max_drawdown = max(
 
-                max_drawdown,
 
-                drawdown
+    def add_trade(
+        self,
+        trade: Trade,
+    ):
+
+        """
+        Update equity after closed trade.
+        """
+
+        if trade.status != "CLOSED":
+
+            return
+
+
+
+        self.current_equity += trade.profit_loss
+
+
+
+        self.history.append(
+
+            EquityPoint(
+
+                trade_id=trade.id,
+
+                timestamp=(
+
+                    trade.closed.isoformat()
+
+                    if trade.closed
+
+                    else ""
+
+                ),
+
+                equity=round(
+
+                    self.current_equity,
+
+                    2
+
+                ),
 
             )
 
-            history.append(
+        )
 
-                {
 
-                    "id": trade.id,
 
-                    "symbol": trade.symbol,
+    def value(
+        self,
+    ) -> float:
 
-                    "profit_loss": pnl,
+        return round(
 
-                    "balance": round(
+            self.current_equity,
 
-                        balance,
+            2
 
-                        2
+        )
 
-                    ),
 
-                    "drawdown": round(
 
-                        drawdown,
+    def growth_percent(
+        self,
+    ) -> float:
 
-                        2
+        return round(
 
-                    )
+            (
 
-                }
+                (
+
+                    self.current_equity
+
+                    -
+
+                    self.starting_balance
+
+                )
+
+                /
+
+                self.starting_balance
 
             )
 
+            *
 
-        return {
+            100,
 
-            "starting_balance": round(
+            2
 
-                self.starting_balance,
+        )
 
-                2
 
-            ),
 
-            "ending_balance": round(
+    def points(
+        self,
+    ) -> list[dict]:
 
-                balance,
+        return [
 
-                2
+            {
 
-            ),
+                "trade_id": point.trade_id,
 
-            "peak_balance": round(
+                "timestamp": point.timestamp,
 
-                peak,
+                "equity": point.equity,
 
-                2
+            }
 
-            ),
+            for point in self.history
 
-            "max_drawdown": round(
-
-                max_drawdown,
-
-                2
-
-            ),
-
-            "total_return": round(
-
-                balance - self.starting_balance,
-
-                2
-
-            ),
-
-            "history": history,
-
-        }
+        ]

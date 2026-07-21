@@ -1,9 +1,10 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
 Risk Manager
 
 Creates trade plans using:
+
 - Account risk
 - Position sizing
 - Stop placement
@@ -12,11 +13,15 @@ Creates trade plans using:
 
 from __future__ import annotations
 
-from atlas.trade import Trade
+from models.trade import Trade
 
 
 
 def get_current_price(df):
+
+    """
+    Extract latest closing price.
+    """
 
     possible_columns = [
 
@@ -41,7 +46,7 @@ def get_current_price(df):
 
 
     raise ValueError(
-        "No closing price column found in market data"
+        "No closing price column found"
     )
 
 
@@ -53,10 +58,17 @@ def calculate_position_size(
     stop_loss: float,
 ):
 
+    """
+    Calculate trade quantity based on risk.
+    """
+
     risk_amount = (
+
         account_balance
+
         *
         (risk_percent / 100)
+
     )
 
 
@@ -67,11 +79,16 @@ def calculate_position_size(
 
     if distance == 0:
 
-        return 0, 0
+        return 0, risk_amount
 
 
     quantity = int(
-        risk_amount / distance
+
+        risk_amount
+
+        /
+        distance
+
     )
 
 
@@ -88,8 +105,13 @@ def create_trade(
     confidence: float,
 ):
 
-    entry = get_current_price(df)
+    """
+    Create a new Trade object.
+    """
 
+    entry = get_current_price(
+        df
+    )
 
 
     if direction == "LONG":
@@ -108,10 +130,15 @@ def create_trade(
 
 
     quantity, risk_amount = calculate_position_size(
+
         account_balance,
+
         risk_percent,
+
         entry,
+
         stop_loss,
+
     )
 
 
@@ -122,7 +149,9 @@ def create_trade(
 
 
     reward_amount = abs(
+
         take_profit - entry
+
     ) * quantity
 
 
@@ -131,7 +160,7 @@ def create_trade(
 
         reward_amount / risk_amount
 
-        if risk_amount
+        if risk_amount > 0
 
         else 0
 
@@ -156,7 +185,10 @@ def create_trade(
 
         reward_amount=reward_amount,
 
-        risk_reward=risk_reward,
+        risk_reward=round(
+            risk_reward,
+            2
+        ),
 
         confidence=confidence,
 

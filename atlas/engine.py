@@ -8,33 +8,34 @@ from __future__ import annotations
 
 
 from atlas.session import Session
-
 from atlas.scanner import Scanner
+from atlas.portfolio_loader import PortfolioLoader
+
 
 from data.market_data import MarketData
 
+
 from indicators.composite import build_indicator_set
+
 
 from strategy.signal_generator import generate_scorecard
 
-from risk.risk_manager import create_trade
 
+from risk.risk_manager import create_trade
 from risk.position_manager import PositionManager
 
 
 from database.database import Database
-
 from database.trades import TradeRepository
-
 from database.portfolio import PortfolioRepository
-
 from database.journal import JournalRepository
+from database.equity import EquityRepository
 
 
 from execution.manager import ExecutionManager
 
 
-from performance.metrics import PerformanceMetrics
+from services.performance_service import PerformanceService
 
 
 
@@ -43,14 +44,20 @@ class AtlasEngine:
 
     def __init__(self):
 
+
         self.session = Session()
+
 
         self.market = MarketData()
 
         self.scanner = Scanner()
 
 
+
+        # Database
+
         self.database = Database()
+
 
 
         self.trades = TradeRepository(
@@ -58,13 +65,8 @@ class AtlasEngine:
         )
 
 
-        self.positions = PositionManager(
-            self.trades
-        )
-
-
-        self.performance_tracker = PerformanceMetrics(
-            self.trades
+        self.equity = EquityRepository(
+            self.database
         )
 
 
@@ -78,7 +80,36 @@ class AtlasEngine:
         )
 
 
+
+        # Restore saved positions
+
+        self.portfolio_loader = PortfolioLoader(
+            self.trades
+        )
+
+
+        self.portfolio_loader.load(
+            self.session.portfolio
+        )
+
+
+
+        # Risk and execution
+
+        self.positions = PositionManager(
+            self.trades
+        )
+
+
         self.execution = ExecutionManager(
+            self.trades
+        )
+
+
+
+        # Performance
+
+        self.performance_service = PerformanceService(
             self.trades
         )
 
@@ -96,6 +127,7 @@ class AtlasEngine:
         self,
         symbol: str
     ):
+
 
         if not self.positions.can_open_position(
             symbol
@@ -120,6 +152,7 @@ class AtlasEngine:
         )
 
 
+
         direction = "LONG"
 
 
@@ -130,6 +163,7 @@ class AtlasEngine:
 
 
         trade = create_trade(
+
             symbol=symbol,
 
             df=df,
@@ -142,11 +176,13 @@ class AtlasEngine:
             direction=direction,
 
             confidence=score.confidence,
+
         )
 
 
 
         if trade:
+
 
             self.trades.save(
                 trade
@@ -164,18 +200,22 @@ class AtlasEngine:
 
 
             self.journal.log(
+
                 "TRADE_CREATED",
+
                 trade.symbol
+
             )
+
 
 
         return score, trade
 
 
 
-    def monitor_trades(
-        self
-    ):
+
+    def monitor_trades(self):
+
 
         open_trades = self.trades.open_trades()
 
@@ -183,24 +223,48 @@ class AtlasEngine:
         prices = {}
 
 
+
         for trade in open_trades:
+
 
             df = self.market.get_history(
                 trade.symbol
             )
 
 
-            prices[
-                trade.symbol
-            ] = float(
+            prices[trade.symbol] = float(
+
                 df["Close"].iloc[-1]
+
             )
 
 
-        return self.execution.monitor_open_trades(
+
+        results = self.execution.monitor_open_trades(
+
             open_trades,
+
             prices
+
         )
+
+
+
+        for result in results:
+
+
+            self.equity.save(
+
+                equity=self.session.portfolio.equity,
+
+                trade_id=result.get("id")
+
+            )
+
+
+
+        return results
+
 
 
 
@@ -214,13 +278,19 @@ class AtlasEngine:
 
     def performance(self):
 
-        return self.performance_tracker.calculate()
+        return self.performance_service.summary()
 
 
 
     def portfolio(self):
 
         return self.session.portfolio
+
+
+
+    def equity_history(self):
+
+        return self.equity.history()
 
 
 

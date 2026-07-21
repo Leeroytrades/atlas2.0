@@ -1,30 +1,38 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
 Trade Repository
 
-Handles:
-- Saving trades
-- Loading trades
-- Updating trades
-- Closing trades
-- Trade history
+Handles all database interaction for trades.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
 
-from atlas.trade import Trade
+from models.trade import Trade
 
 
 class TradeRepository:
+    """
+    SQLite repository for Trade objects.
+    """
 
-    def __init__(self, database):
+    def __init__(
+        self,
+        database,
+    ):
 
         self.database = database
 
-    def save(self, trade: Trade):
+    # ---------------------------------------------------------
+    # CREATE
+    # ---------------------------------------------------------
+
+    def save(
+        self,
+        trade: Trade,
+    ) -> Trade:
 
         query = """
         INSERT INTO trades (
@@ -64,9 +72,9 @@ class TradeRepository:
                 trade.risk_reward,
                 trade.confidence,
                 trade.opened.isoformat(),
-                "OPEN",
+                trade.status,
 
-            )
+            ),
 
         )
 
@@ -74,7 +82,14 @@ class TradeRepository:
 
         return trade
 
-    def update(self, trade):
+    # ---------------------------------------------------------
+    # UPDATE
+    # ---------------------------------------------------------
+
+    def update(
+        self,
+        trade: Trade,
+    ) -> Trade:
 
         query = """
         UPDATE trades
@@ -101,72 +116,59 @@ class TradeRepository:
                 if trade.closed
                 else None,
 
-                getattr(
-                    trade,
-                    "exit_price",
-                    None
-                ),
+                trade.exit_price,
 
-                getattr(
-                    trade,
-                    "profit_loss",
-                    None
-                ),
+                trade.profit_loss,
 
                 trade.id,
 
-            )
+            ),
 
         )
 
         return trade
 
-    def close_trade(self, trade, exit_price: float):
+    # ---------------------------------------------------------
+    # CLOSE
+    # ---------------------------------------------------------
 
-        if trade.direction == "LONG":
+    def close_trade(
+        self,
+        trade: Trade,
+        exit_price: float,
+    ) -> Trade:
 
-            profit_loss = (
-
-                exit_price - trade.entry
-
-            ) * trade.quantity
-
-        else:
-
-            profit_loss = (
-
-                trade.entry - exit_price
-
-            ) * trade.quantity
-
-        trade.status = "CLOSED"
-
-        trade.closed = datetime.now()
-
-        trade.exit_price = exit_price
-
-        trade.profit_loss = round(
-            profit_loss,
-            2
+        trade.close(
+            exit_price
         )
 
-        self.update(trade)
+        self.update(
+            trade
+        )
 
         return trade
 
-    def open_trades(self):
+    # ---------------------------------------------------------
+    # LOAD
+    # ---------------------------------------------------------
 
-        query = """
-        SELECT *
+    def open_trades(
+        self,
+    ) -> list[Trade]:
 
-        FROM trades
+        rows = self.database.fetch_all(
 
-        WHERE status='OPEN'
+            """
+            SELECT *
 
-        ORDER BY opened ASC
-        """
+            FROM trades
 
-        rows = self.database.fetch_all(query)
+            WHERE status='OPEN'
+
+            ORDER BY opened ASC
+            """
+
+        )
 
         return [
 
@@ -176,19 +178,23 @@ class TradeRepository:
 
         ]
 
-    def get_closed_trades(self):
+    def closed_trades(
+        self,
+    ) -> list[Trade]:
 
-        query = """
-        SELECT *
+        rows = self.database.fetch_all(
 
-        FROM trades
+            """
+            SELECT *
 
-        WHERE status='CLOSED'
+            FROM trades
 
-        ORDER BY closed ASC
-        """
+            WHERE status='CLOSED'
 
-        rows = self.database.fetch_all(query)
+            ORDER BY closed ASC
+            """
+
+        )
 
         return [
 
@@ -198,33 +204,43 @@ class TradeRepository:
 
         ]
 
-    def recent(self, limit=20):
-
-        query = """
-        SELECT *
-
-        FROM trades
-
-        ORDER BY id DESC
-
-        LIMIT ?
-        """
+    def recent(
+        self,
+        limit: int = 20,
+    ):
 
         return self.database.fetch_all(
 
-            query,
+            """
+            SELECT *
+
+            FROM trades
+
+            ORDER BY id DESC
+
+            LIMIT ?
+            """,
 
             (
 
                 limit,
 
-            )
+            ),
 
         )
 
-    def _row_to_trade(self, row):
+    # ---------------------------------------------------------
+    # INTERNAL
+    # ---------------------------------------------------------
+
+    def _row_to_trade(
+        self,
+        row,
+    ) -> Trade:
 
         trade = Trade(
+
+            id=row["id"],
 
             symbol=row["symbol"],
 
@@ -246,30 +262,28 @@ class TradeRepository:
 
             confidence=row["confidence"],
 
+            status=row["status"],
+
+            opened=datetime.fromisoformat(
+                row["opened"]
+            ),
+
+            closed=(
+
+                datetime.fromisoformat(
+                    row["closed"]
+                )
+
+                if row["closed"]
+
+                else None
+
+            ),
+
+            exit_price=row["exit_price"],
+
+            profit_loss=row["profit_loss"] or 0.0,
+
         )
-
-        trade.id = row["id"]
-
-        trade.status = row["status"]
-
-        trade.opened = datetime.fromisoformat(
-            row["opened"]
-        )
-
-        trade.closed = (
-
-            datetime.fromisoformat(
-                row["closed"]
-            )
-
-            if row["closed"]
-
-            else None
-
-        )
-
-        trade.exit_price = row["exit_price"]
-
-        trade.profit_loss = row["profit_loss"]
 
         return trade

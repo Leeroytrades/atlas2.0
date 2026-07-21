@@ -1,103 +1,137 @@
 """
 Atlas AI Trading Assistant 2.0
 
-Dashboard
+Dashboard Controller
 """
 
+from __future__ import annotations
+
+
 from rich.console import Console
+from rich.panel import Panel
+from rich.columns import Columns
 
-from display.theme import ATLAS_THEME
-
-from display.panels import title_panel
-
-from display.tables import score_table
-
-from display.tables import trade_table
 
 from display.scanner_table import scanner_table
 
-from display.positions import positions_table
+from display.portfolio import portfolio_table
 
 from display.performance import performance_table
 
+from display.equity import equity_table
 
 
-console = Console(
-    theme=ATLAS_THEME
-)
+
+console = Console()
 
 
 
 def show_dashboard(
-    results,
-    score,
-    trade,
-    positions=None,
-    prices=None,
-    metrics=None
+    scans,
+    portfolio,
+    metrics,
+    equity_history=None,
+    current_equity=10000.00,
 ):
+
 
     console.clear()
 
 
-    console.print(
-        title_panel()
-    )
 
-
-    console.print()
-
+    # Scanner
 
     console.print(
-        scanner_table(results)
-    )
 
+        Panel(
 
-    console.print()
+            scanner_table(scans),
 
+            title="Market Scanner"
 
-    console.print(
-        score_table(score)
-    )
-
-
-    console.print()
-
-
-    console.print(
-        trade_table(trade)
-    )
-
-
-    console.print()
-
-
-
-    if positions:
-
-        console.print(
-            positions_table(
-                positions,
-                prices
-            )
         )
 
-        console.print()
+    )
 
 
 
-    if metrics:
+    # Portfolio
 
-        console.print(
-            performance_table(
-                metrics
-            )
-        )
+    portfolio_display = portfolio_table(
 
-        console.print()
+        portfolio
+
+    )
+
+
+
+    # Performance
+
+    performance_display = performance_table(
+
+        metrics
+
+    )
+
+
+
+    # Equity
+
+    if equity_history is None:
+
+        equity_history = []
+
+
+
+    equity_display = equity_table(
+
+        equity_history,
+
+        current_equity
+
+    )
 
 
 
     console.print(
-        "[bold green]Analysis Complete[/bold green]"
+
+        Columns(
+
+            [
+
+                Panel(
+
+                    portfolio_display,
+
+                    title="Portfolio"
+
+                ),
+
+
+                Panel(
+
+                    performance_display,
+
+                    title="Performance Analytics"
+
+                ),
+
+            ]
+
+        )
+
+    )
+
+
+
+    console.print(
+
+        Panel(
+
+            equity_display,
+
+            title="Equity Curve"
+
+        )
+
     )

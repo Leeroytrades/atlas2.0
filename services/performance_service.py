@@ -2,19 +2,34 @@
 Atlas AI Trading Platform
 
 Performance Service
+
+Connects:
+- Engine
+- Performance calculations
 """
 
 from __future__ import annotations
 
 
+from performance.metrics import PerformanceMetrics
+
+
+
 class PerformanceService:
+
 
     def __init__(
         self,
-        metrics,
+        trade_repository
     ):
 
-        self.metrics = metrics
+        self.metrics = PerformanceMetrics(
+
+            trade_repository
+
+        )
+
+
 
     def summary(self):
 

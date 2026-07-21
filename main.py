@@ -1,6 +1,11 @@
 """
 Atlas AI Trading Assistant 2.0
+
+Application Entry Point
 """
+
+from __future__ import annotations
+
 
 from atlas.engine import AtlasEngine
 
@@ -13,69 +18,85 @@ def main():
     atlas = AtlasEngine()
 
 
+
     print()
 
-    print(
-        "Scanning Market...\n"
+    print("Scanning Market...")
+
+    print()
+
+
+
+    scans = atlas.scan_market()
+
+
+
+    if scans:
+
+
+        best_symbol = scans[0].symbol
+
+
+        score, trade = atlas.analyse(
+
+            best_symbol
+
+        )
+
+
+        if trade:
+
+            print(
+                f"Trade created: {trade.symbol}"
+            )
+
+        else:
+
+            print(
+                f"Existing position detected for {best_symbol}"
+            )
+
+            print(
+                "Trade creation skipped."
+            )
+
+
+
+    atlas.monitor_trades()
+
+
+
+    metrics = atlas.performance()
+
+
+
+    current_equity = metrics.get(
+
+        "equity",
+
+        10000.00
+
     )
-
-
-    results = atlas.scan_market()
-
-
-    if not results:
-
-        print(
-            "No symbols were scanned."
-        )
-
-        return
-
-
-
-    best = results[0]
-
-
-    score, trade = atlas.analyse(
-        best.symbol
-    )
-
-
-    if score is None:
-
-        print()
-
-        print(
-            f"Existing position detected for {best.symbol}"
-        )
-
-        print(
-            "Trade creation skipped."
-        )
-
-        print()
-
-        print(
-            atlas.performance()
-        )
-
-        return
 
 
 
     show_dashboard(
 
-        results,
+        scans=scans,
 
-        score,
+        portfolio=atlas.portfolio(),
 
-        trade,
+        metrics=metrics,
 
-        atlas.portfolio().positions,
+        equity_history=atlas.equity_history(),
 
-        metrics=atlas.performance()
+        current_equity=current_equity,
 
     )
+
+
+
+    atlas.close()
 
 
 

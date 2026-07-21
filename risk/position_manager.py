@@ -1,78 +1,76 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Platform
 
 Position Manager
 
-Controls:
-- Duplicate position prevention
-- Symbol exposure checks
-- Open position validation
+Responsible for position validation.
 """
 
 from __future__ import annotations
 
+from models.trade import Trade
 
 
 class PositionManager:
 
-
     def __init__(
         self,
-        trade_repository
+        trade_repository,
     ):
 
         self.trades = trade_repository
 
+    def open_positions(self) -> list[Trade]:
+        """
+        Return all open trades.
+        """
 
+        return self.trades.open_trades()
 
     def has_open_position(
         self,
-        symbol: str
-    ):
+        symbol: str,
+    ) -> bool:
+        """
+        Check if a symbol already has an open trade.
+        """
 
-        open_trades = self.trades.open_trades()
+        return any(
 
+            trade.symbol == symbol
 
-        for trade in open_trades:
+            for trade in self.open_positions()
 
-            if trade.symbol == symbol:
-
-                return True
-
-
-        return False
-
-
+        )
 
     def can_open_position(
         self,
-        symbol: str
-    ):
+        symbol: str,
+    ) -> bool:
+        """
+        Can Atlas open another trade?
+        """
 
         return not self.has_open_position(
             symbol
         )
 
-
-
     def open_position_count(
-        self
-    ):
+        self,
+    ) -> int:
 
         return len(
-            self.trades.open_trades()
+            self.open_positions()
         )
 
-
-
     def symbols_open(
-        self
-    ):
+        self,
+    ) -> list[str]:
 
         return [
 
             trade.symbol
 
-            for trade in self.trades.open_trades()
+            for trade in self.open_positions()
 
         ]
