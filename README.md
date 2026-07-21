@@ -1,10 +1,132 @@
-# Atlas AI Trading Assistant 2.0
+# Atlas AI Trading Assistant 2.1
 
 ## Overview
 
-Atlas AI Trading Assistant 2.0 is a modular AI-assisted trading platform designed to analyse markets, generate trade ideas, manage risk, track positions, and provide performance analytics.
+Atlas AI Trading Assistant is a modular Python trading platform designed for professional-style market analysis, risk management, trade tracking, and future broker integration.
 
-The project has evolved from a market scanner into a structured trading engine.
+The project is built with a clean architecture allowing new features to be added without rebuilding the core system.
+
+Current focus:
+
+- Market scanning
+- Technical analysis
+- Signal scoring
+- Risk management
+- Portfolio tracking
+- Trade database
+- Performance analytics
+- Trade journal
+- Equity tracking
+- Trade monitoring
+
+
+---
+
+# Current Version
+
+## Atlas AI Trading Assistant 2.1
+
+
+Status:
+
+✅ Core engine operational  
+✅ Database persistence operational  
+✅ Scanner operational  
+✅ Portfolio system operational  
+✅ Performance analytics operational  
+✅ Equity history operational  
+✅ Trade journal operational  
+✅ Trade monitoring operational  
+
+
+---
+
+# Architecture
+
+
+main.py
+
+|
+v
+
+AtlasEngine
+
+|
++----------------+
+|                |
+
+Session Database
+| |
+| +--> Trades
+| +--> Journal
+| +--> Equity History
+| +--> Portfolio
+|
++--> Watchlist
+|
++--> Scanner
+|
++--> Risk Management
+|
++--> Trade Monitor
+|
++--> Performance Engine
+
+
+
+---
+
+# Project Structure
+
+
+Atlas2.0/
+
+│
+├── main.py
+├── README.md
+├── PROJECT_STATUS.md
+├── watchlist.txt
+├── atlas.db
+│
+├── atlas/
+│ ├── engine.py
+│ ├── session.py
+│ ├── scanner.py
+│ └── watchlist.py
+│
+├── database/
+│ ├── database.py
+│ ├── trades.py
+│ ├── journal.py
+│ ├── equity_history.py
+│ ├── portfolio.py
+│ └── models.py
+│
+├── performance/
+│ ├── metrics.py
+│ └── equity_chart.py
+│
+├── risk/
+│ ├── position_manager.py
+│ ├── trade_monitor.py
+│ └── trade_state.py
+│
+├── services/
+│ └── performance_service.py
+│
+├── display/
+│ ├── dashboard.py
+│ ├── panels.py
+│ ├── tables.py
+│ └── equity.py
+│
+├── indicators/
+│
+├── strategy/
+│
+└── models/
+
+
 
 ---
 
@@ -12,311 +134,117 @@ The project has evolved from a market scanner into a structured trading engine.
 
 ## Market Scanner
 
-Atlas scans a configurable watchlist and ranks symbols using a composite scoring system.
-
-Features:
-
+- Dynamic watchlist support
 - Symbol scanning
-- Market ranking
-- Bullish/bearish bias detection
-- Confidence scoring
-- Trade opportunity identification
-
-Example:
+- Technical indicator analysis
+- Score generation
+- Bull/Bear bias
 
 
-AAPL
+## Strategy Engine
 
-Score: 70
-Bias: BUY
-Confidence: 70%
-
-
----
-
-## Technical Analysis Engine
-
-Atlas processes historical market data through an indicator pipeline.
-
-Current analysis areas:
+Current scoring includes:
 
 - Trend
 - Momentum
 - Volatility
 - Volume
 
-Pipeline:
-
-
-Market Data
-|
-v
-Indicators
-|
-v
-Scorecard
-|
-v
-Trading Signal
-
-
----
-
-# Strategy Engine
-
-The strategy engine converts market analysis into trading decisions.
-
-Outputs:
-
-- Direction
-- Confidence
-- Bias
-- Trade eligibility
 
 Example:
 
 
-Direction:
-LONG
+AAPL
+Score: 70
+Bias: BUY
+Confidence: 70%
 
-Confidence:
-70%
 
 
 ---
 
 # Risk Management
 
-Atlas includes a complete risk calculation system.
+Implemented:
 
-Features:
-
-- Entry calculation
-- Stop loss calculation
-- Take profit calculation
-- Position sizing
-- Risk amount
-- Reward amount
-- Risk/reward ratio
-
-Example:
-
-
-Entry:
-328.20
-
-Stop:
-311.80
-
-Target:
-361.00
-
-Risk:
-$100
-
-Reward:
-$197
-
-Risk Reward:
-1.97
+- Position manager
+- Risk calculations
+- Stop loss handling
+- Take profit handling
+- Trade state tracking
 
 
 ---
 
-# Trade Management
+# Database
 
-Trade objects support:
-
-- Symbol
-- Direction
-- Entry
-- Stop loss
-- Take profit
-- Quantity
-- Risk
-- Reward
-- Confidence
-- Status
-- Open timestamp
-- Close timestamp
-- Exit price
-- Profit/Loss
-
-
-Trade lifecycle:
-
-
-SIGNAL GENERATED
-
-    |
-
-    v
-
-OPEN TRADE
-
-    |
-
-    v
-
-MONITOR POSITION
-
-    |
-
-    v
-
-TARGET OR STOP HIT
-
-    |
-
-    v
-
-CLOSED TRADE
-
-
----
-
-# Portfolio System
-
-Atlas tracks:
-
-- Account balance
-- Active positions
-- Exposure
-- Open trades
-
-Duplicate protection prevents multiple open positions on the same symbol.
-
-Example:
-
-
-Existing position detected for AAPL
-
-Trade creation skipped.
-
-
----
-
-# Database System
-
-Atlas uses SQLite persistence.
-
-Database:
+SQLite database:
 
 
 atlas.db
 
 
-Stores:
 
-- Trades
-- Positions
-- Status
-- Entry prices
-- Stop loss
-- Take profit
+Current tables:
+
+
+trades
+
+portfolio
+
+journal
+
+equity_history
+
+
+
+Trades store:
+
+- Symbol
+- Direction
+- Entry
+- Stop Loss
+- Take Profit
+- Quantity
+- Risk
+- Reward
 - Confidence
-- Timestamps
-- Exit information
+- Status
+- Exit price
 - Profit/Loss
 
----
-
-# Execution Engine
-
-The execution layer monitors active trades.
-
-Current capabilities:
-
-- Load open trades
-- Monitor positions
-- Detect stop loss
-- Detect take profit
-- Close trade foundation
-- Calculate realised P/L foundation
 
 ---
 
-# Performance Analytics
+# Performance System
 
-Atlas performance system calculates:
+Tracks:
 
 - Total trades
+- Open trades
 - Closed trades
 - Wins
 - Losses
 - Win rate
-- Total profit/loss
-- Average win
-- Average loss
-- Profit factor
+- Net profit
+- Equity
+- Growth
+- Drawdown
+- Expectancy
 
-Future additions:
-
-- Equity curve
-- Drawdown tracking
-- Monthly returns
-- Advanced statistics
 
 ---
 
-# Dashboard
+# Trade Journal
 
-Atlas uses the Rich terminal interface.
+Records:
 
-Current dashboard sections:
-
-- Market Scanner
-- Atlas Scorecard
-- Trade Plan
-- Portfolio
-- Performance Metrics
-
----
-
-# Project Structure
-
-
-Atlas2.0
-
-├── atlas
-│ ├── engine.py
-│ ├── session.py
-│ └── scanner.py
-│
-├── data
-│ └── market_data.py
-│
-├── indicators
-│ └── composite.py
-│
-├── strategy
-│ └── signal_generator.py
-│
-├── risk
-│ ├── risk_manager.py
-│ └── position_manager.py
-│
-├── database
-│ ├── database.py
-│ ├── trades.py
-│ ├── portfolio.py
-│ └── journal.py
-│
-├── execution
-│ └── manager.py
-│
-├── performance
-│ ├── metrics.py
-│ └── statistics.py
-│
-├── display
-│ ├── dashboard.py
-│ ├── tables.py
-│ └── performance.py
-│
-├── main.py
-│
-└── atlas.db
+- Trade events
+- Signals
+- Scores
+- Confidence
+- Market conditions
+- Outcomes
 
 
 ---
@@ -329,57 +257,58 @@ Activate environment:
 .venv\Scripts\activate
 
 
+
 Run:
 
 
-python -m main
+python main.py
+
+
+
+---
+
+# Git Backup
+
+Check status:
+
+
+git status
+
+
+
+Save changes:
+
+
+git add .
+
+git commit -m "Atlas update"
+
+git push
+
 
 
 ---
 
-# Development Philosophy
+# Next Development Phase
 
-Atlas is built around:
+## Atlas 2.2
 
-- Modular architecture
-- Clear separation of systems
-- Expandable components
-- Database persistence
-- Production-style organisation
+Planned:
 
----
-
-# Future Development
-
-## Equity Curve System
-
-Will add:
-
-- Account growth tracking
-- Drawdown monitoring
-- Returns analysis
-
-
-## Backtesting Engine
-
-Will add:
-
-- Historical simulation
-- Strategy testing
-- Performance comparison
-
-
-## Live Market Monitor
-
-Will add:
-
-- Real-time pricing
+- Automatic trade execution
+- Signal → Trade creation pipeline
+- Broker integration layer
+- Backtesting engine
+- AI trade explanations
+- Live market monitoring
 - Alerts
-- Automated monitoring
+- Advanced portfolio analytics
 
 
 ---
 
-# Current Status
+# Developer
 
-Atlas AI Trading Assistant 2.0 has a stable core engine and is ready for advanced analytics, testing, and expansion.
+Liam Thornton
+
+Atlas AI Trading Assistant

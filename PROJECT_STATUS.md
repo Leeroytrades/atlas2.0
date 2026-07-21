@@ -1,448 +1,340 @@
-# Atlas AI Trading Assistant 2.0
+eplace PROJECT_STATUS.md with:
+# Atlas AI Trading Assistant 2.1
 
-# Project Status Report
+## Project Status
 
 Date:
-20 July 2026
+21 July 2026
 
 
 ---
 
-# Overall Status
+# Current State
 
-Atlas AI Trading Assistant 2.0 core architecture is operational.
+Atlas is stable and running.
 
-Current phase:
-
-
-CORE ENGINE COMPLETE
-
-MOVING INTO ADVANCED ANALYTICS
+Latest successful command:
 
 
----
-
-# Completed Systems
-
-## Engine
-
-Status:
-
-COMPLETE
+python main.py
 
 
-Includes:
 
-- Session management
-- Market scanning
-- Analysis pipeline
-- Trade generation
-- System coordination
+Dashboard currently displays:
+
+✅ Market Scanner  
+✅ Portfolio Overview  
+✅ Performance Analytics  
+✅ Equity Statistics  
+✅ Equity Curve section  
 
 
 ---
 
-## Market Scanner
-
-Status:
-
-COMPLETE
+# Completed Milestones
 
 
-Working:
+## Milestone 1
 
-- Watchlist scanning
-- Symbol ranking
-- Score generation
-- Bias detection
-- Confidence scoring
+Project foundation
 
+Completed:
 
----
-
-## Indicator System
-
-Status:
-
-COMPLETE
-
-
-Includes:
-
-- Trend analysis
-- Momentum analysis
-- Volatility analysis
-- Volume analysis
+✅ Python environment  
+✅ Project structure  
+✅ Git repository  
+✅ Dependencies  
 
 
 ---
 
-## Strategy Engine
+## Milestone 2
 
-Status:
+Trading Core
 
-COMPLETE
+Completed:
 
-
-Outputs:
-
-- Scorecard
-- Trading bias
-- Confidence level
-- Trade direction
+✅ Market data layer  
+✅ Indicators  
+✅ Composite scoring  
+✅ Strategy engine  
+✅ Signal generation  
 
 
 ---
 
-## Risk Management
+## Milestone 3
 
-Status:
+Risk System
 
-COMPLETE
+Completed:
 
-
-Features:
-
-- Entry calculation
-- Stop loss
-- Take profit
-- Position sizing
-- Risk calculation
-- Reward calculation
-- Risk/reward calculation
+✅ Position manager  
+✅ Position sizing  
+✅ Stop loss  
+✅ Take profit  
+✅ Trade model  
 
 
 ---
 
-## Trade System
+## Milestone 4
 
-Status:
+Database Layer
 
-COMPLETE
+Completed:
 
-
-Supports:
-
-- Trade creation
-- Trade IDs
-- Open status
-- Close status
-- Exit price
-- Profit/Loss tracking
+✅ SQLite database  
+✅ Trade persistence  
+✅ Portfolio storage  
+✅ Journal storage  
+✅ Equity history storage  
 
 
 ---
 
-## Portfolio System
+## Milestone 5
 
-Status:
+Analytics
 
-OPERATIONAL
+Completed:
 
-
-Supports:
-
-- Account balance
-- Position tracking
-- Exposure tracking
-- Duplicate trade prevention
+✅ Performance metrics  
+✅ Equity tracking  
+✅ Dashboard integration  
 
 
 ---
 
-## Database Layer
+## Milestone 6
 
-Status:
+Trade Monitoring
 
-COMPLETE
+Completed:
+
+✅ Trade monitor  
+✅ Trade states  
+✅ Target detection  
+✅ Stop detection  
+✅ Trade lifecycle connection  
+
+
+---
+
+# Current Architecture
+
+
+
+main.py
+
+|
+v
+
+AtlasEngine
+
+|
++-- Session
+|
++-- Scanner
+|
++-- Database
+|
++-- Trade Repository
+|
++-- Journal Repository
+|
++-- Equity Repository
+|
++-- Position Manager
+|
++-- Trade Monitor
+|
++-- Performance Service
+
+
+---
+
+# Current Known Limitations
+
+
+The system currently does NOT:
+
+❌ Automatically create trades from BUY signals
+
+❌ Connect to a broker
+
+❌ Stream live market prices
+
+❌ Execute real orders
+
+❌ Run full backtests
+
+
+These are next development stages.
+
+
+---
+
+# Next Session Starting Point
+
+
+## Atlas 2.2 - Trade Execution Engine
+
+
+Goal:
+
+Convert:
+
+
+Scanner Signal
+|
+v
+Strategy Decision
+|
+v
+Trade Creation
+|
+v
+Database
+|
+v
+Portfolio
+|
+v
+Journal
+
+
+
+Required work:
+
+1. Build Trade Execution Service
+
+2. Connect BUY signals to TradeRepository
+
+3. Automatically create trades
+
+4. Update portfolio after execution
+
+5. Record journal events
+
+6. Test full lifecycle
+
+
+---
+
+# Important Files
+
+
+Core:
+
+
+atlas/engine.py
+main.py
+
 
 
 Database:
 
 
-atlas.db
+database/database.py
+database/trades.py
+database/journal.py
+database/equity_history.py
 
 
 
-Stores:
+Risk:
 
-- Trade records
-- Status
-- Prices
-- Risk values
-- Reward values
-- Confidence
-- Timestamps
-- Profit/Loss
+
+risk/position_manager.py
+risk/trade_monitor.py
+risk/trade_state.py
+
+
+
+Performance:
+
+
+performance/metrics.py
+services/performance_service.py
+
 
 
 ---
 
-## Execution Manager
-
-Status:
-
-IN DEVELOPMENT
+# Last Successful Test
 
 
-Completed:
-
-- Open trade loading
-- Position monitoring
-- Exit condition framework
+Command:
 
 
-Remaining:
+python main.py
 
-- Full close testing
-- Automated trade updates
+
+
+Result:
+
+
+Market Scanner loaded
+
+Portfolio loaded
+
+Performance Analytics loaded
+
+Equity Statistics loaded
+
+No errors
+
 
 
 ---
 
-## Performance System
-
-Status:
-
-IN DEVELOPMENT
+# Git Status Before Closing
 
 
-Completed:
-
-- Trade counting
-- Win/loss calculations
-- Profit factor
-- Performance metrics
+Remember tomorrow:
 
 
-Remaining:
+git status
 
-- Equity curve
-- Drawdown
-- Historical reporting
+git add .
+
+git commit -m "Atlas 2.1 stable checkpoint"
+
+git push
+
 
 
 ---
 
-## Dashboard
+# Resume Instructions
 
-Status:
 
-OPERATIONAL
+When continuing:
 
+1. Activate virtual environment
 
-Displays:
 
-- Scanner results
-- Scorecard
-- Trade plan
-- Portfolio
-- Performance information
+.venv\Scripts\activate
 
 
----
 
-# Testing Completed
+2. Open project:
 
-Successful:
 
+cd C:\Users\Admin\Atlas2.0
 
-Market scanning PASS
 
-Signal generation PASS
 
-Risk calculation PASS
+3. Run:
 
-Trade creation PASS
 
-Database saving PASS
+python main.py
 
-Database loading PASS
 
-Duplicate protection PASS
 
-Dashboard output PASS
+4. Continue from:
 
+## Trade Execution Engine
 
----
-
-# Current Database State
-
-Database successfully stores live trade objects.
-
-Example:
-
-
-ID:
-12
-
-Symbol:
-AAPL
-
-Direction:
-LONG
-
-Status:
-OPEN
-
-Confidence:
-0.70
-
-
----
-
-# Remaining Development
-
-## Phase 3
-
-Performance Expansion
-
-
-Build:
-
-
-performance/equity_curve.py
-
-
-
-Add:
-
-- Balance history
-- Growth tracking
-- Drawdown calculation
-
-
----
-
-## Phase 4
-
-Trade Lifecycle Testing
-
-
-Verify:
-
-
-OPEN
-
-|
-
-v
-
-TARGET / STOP
-
-|
-
-v
-
-CLOSED
-
-|
-
-v
-
-P/L UPDATED
-
-
----
-
-## Phase 5
-
-Backtesting Engine
-
-
-Create:
-
-
-backtesting/
-
-engine.py
-
-simulator.py
-
-results.py
-
-
-
-Features:
-
-- Historical testing
-- Strategy evaluation
-- Performance comparison
-
-
----
-
-## Phase 6
-
-Live Monitoring
-
-
-Create:
-
-
-monitor/
-
-prices.py
-
-alerts.py
-
-
-
-Features:
-
-- Real-time prices
-- Alerts
-- Monitoring
-
-
----
-
-# Completion Estimate
-
-
-Engine 100%
-
-Scanner 100%
-
-Indicators 100%
-
-Strategy 100%
-
-Risk 100%
-
-Database 100%
-
-Portfolio 90%
-
-Execution 80%
-
-Performance 70%
-
-Dashboard 80%
-
-Backtesting 0%
-
-Live Monitor 0%
-
-
----
-
-# Next Development Session
-
-Start with:
-
-1. Complete trade closing tests
-2. Build equity curve system
-3. Expand performance dashboard
-4. Begin backtesting framework
-
-
----
-
-# Final Assessment
-
-Atlas AI Trading Assistant 2.0 has a stable professional foundation.
-
-The core trading architecture is complete and ready for the next stage:
-
-ADVANCED ANALYTICS, TESTING, AND AUTOMATION.
+Signal -> Trade -> Database -> Portfolio -> Journal

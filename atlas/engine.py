@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Assistant 2.1
 
 Core Engine
 
@@ -11,7 +11,7 @@ Controls:
 - Risk
 - Performance
 - Equity tracking
-- Trade Journal
+- Trade monitoring
 """
 
 from __future__ import annotations
@@ -33,6 +33,8 @@ from atlas.scanner import Scanner
 
 from risk.position_manager import PositionManager
 
+from risk.trade_monitor import TradeMonitor
+
 from performance.metrics import PerformanceMetrics
 
 
@@ -49,23 +51,13 @@ class AtlasEngine:
 
 
 
-        # Journal
-
-        self.journal = JournalRepository(
-
-            self.database
-
-        )
-
-
-
         # Core session
 
         self.session = Session()
 
 
 
-        # Scanner
+        # Market scanner
 
         self.scanner = Scanner()
 
@@ -87,12 +79,31 @@ class AtlasEngine:
         )
 
 
+        self.journal = JournalRepository(
 
-        # Risk
+            self.database
+
+        )
+
+
+
+        # Risk / positions
 
         self.position_manager = PositionManager(
 
             self.trade_repository
+
+        )
+
+
+
+        # Trade monitoring
+
+        self.trade_monitor = TradeMonitor(
+
+            self.trade_repository,
+
+            self.journal
 
         )
 
@@ -115,37 +126,9 @@ class AtlasEngine:
 
 
 
-        # Restore positions
+        # Restore portfolio
 
         self.load_portfolio()
-
-
-
-        # Journal engine start
-
-        self.database.execute(
-
-            """
-            INSERT INTO journal
-            (
-                event,
-                details,
-                timestamp
-            )
-
-            VALUES (?,?,?)
-
-            """,
-
-            (
-                "ENGINE_START",
-                "Atlas Engine initialized",
-                __import__("datetime")
-                .datetime.now()
-                .isoformat()
-            )
-
-        )
 
 
 
@@ -154,6 +137,7 @@ class AtlasEngine:
     # ---------------------------------
 
     def scan_market(self):
+
 
         return self.scanner.scan(
 
@@ -183,6 +167,7 @@ class AtlasEngine:
         score = next(
 
             (
+
                 item
 
                 for item in results
@@ -207,36 +192,14 @@ class AtlasEngine:
 
 
 
-        self.journal.record_signal(
-
-            symbol=symbol,
-
-            direction=score.bias,
-
-            entry=0,
-
-            score=score.score,
-
-            confidence=score.confidence,
-
-            trend=getattr(score, "trend", 0),
-
-            momentum=getattr(score, "momentum", 0),
-
-            volatility=getattr(score, "volatility", 0),
-
-            volume=getattr(score, "volume", 0),
-
-            market_condition="SCANNED"
-
-        )
-
-
-
         if score.bias == "BUY":
 
 
-            if self.position_manager.can_open_position(symbol):
+            if self.position_manager.can_open_position(
+
+                symbol
+
+            ):
 
 
                 print(
@@ -273,6 +236,7 @@ class AtlasEngine:
 
     def portfolio(self):
 
+
         return self.session.portfolio
 
 
@@ -285,6 +249,7 @@ class AtlasEngine:
 
 
         for trade in trades:
+
 
             self.session.portfolio.add_trade(
 
@@ -322,7 +287,6 @@ class AtlasEngine:
         )
 
 
-
         return metrics
 
 
@@ -332,6 +296,7 @@ class AtlasEngine:
     # ---------------------------------
 
     def equity_history(self):
+
 
         return self.equity_history_repository.all()
 
@@ -347,30 +312,57 @@ class AtlasEngine:
         trades = self.trade_repository.open_trades()
 
 
-        monitored = []
+        results = []
+
 
 
         for trade in trades:
 
 
-            monitored.append(
+            try:
 
-                trade
+
+                current_price = self.scanner.market_data.get_price(
+
+                    trade.symbol
+
+                )
+
+
+            except Exception:
+
+
+                current_price = trade.entry
+
+
+
+            state = self.trade_monitor.check_trade(
+
+                trade,
+
+                current_price
 
             )
 
 
-        return monitored
+
+            results.append(
+
+                {
+
+                    "symbol": trade.symbol,
+
+                    "state": state.value,
+
+                    "price": current_price
+
+                }
+
+            )
 
 
 
-    # ---------------------------------
-    # Journal
-    # ---------------------------------
-
-    def journal_history(self):
-
-        return self.journal.history()
+        return results
 
 
 
@@ -379,5 +371,6 @@ class AtlasEngine:
     # ---------------------------------
 
     def close(self):
+
 
         self.database.close()
