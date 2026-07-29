@@ -39,16 +39,19 @@ from risk.trade_monitor import TradeMonitor
 from risk.risk_manager import create_trade
 
 
+
 class AtlasEngine:
 
 
     def __init__(self):
+
 
         # -------------------------
         # Database
         # -------------------------
 
         self.database = Database()
+
 
 
         # -------------------------
@@ -58,11 +61,13 @@ class AtlasEngine:
         self.session = Session()
 
 
+
         # -------------------------
         # Scanner
         # -------------------------
 
         self.scanner = Scanner()
+
 
 
         # -------------------------
@@ -84,6 +89,7 @@ class AtlasEngine:
         )
 
 
+
         # -------------------------
         # Risk
         # -------------------------
@@ -91,6 +97,7 @@ class AtlasEngine:
         self.position_manager = PositionManager(
             self.trade_repository
         )
+
 
 
         # -------------------------
@@ -103,6 +110,7 @@ class AtlasEngine:
         )
 
 
+
         # -------------------------
         # Performance
         # -------------------------
@@ -111,8 +119,6 @@ class AtlasEngine:
             self.trade_repository
         )
 
-
-        self.last_equity = None
 
 
         self.load_portfolio()
@@ -140,13 +146,17 @@ class AtlasEngine:
         scans
     ):
 
+
         opportunities = []
 
 
         for score in scans:
 
+
             if score.bias != "BUY":
+
                 continue
+
 
 
             if self.position_manager.has_open_position(
@@ -160,6 +170,7 @@ class AtlasEngine:
                 continue
 
 
+
             opportunities.append(score)
 
 
@@ -170,15 +181,15 @@ class AtlasEngine:
 
 
 
-        # Highest confidence first
-
         opportunities.sort(
             key=lambda x: x.confidence,
             reverse=True
         )
 
 
+
         opportunity = opportunities[0]
+
 
 
         print()
@@ -186,6 +197,7 @@ class AtlasEngine:
         print(
             f"Trade opportunity found: {opportunity.symbol}"
         )
+
 
 
         return opportunity
@@ -210,13 +222,20 @@ class AtlasEngine:
 
 
         score = next(
+
             (
                 item
+
                 for item in scans
+
                 if item.symbol == symbol
+
             ),
+
             None
+
         )
+
 
 
         if score is None:
@@ -238,16 +257,25 @@ class AtlasEngine:
 
 
                 trade = create_trade(
+
                     symbol,
+
                     score.dataframe,
+
                     self.session.portfolio.account_balance,
+
                     1.0,
+
                     "LONG",
+
                     score.confidence / 100
+
                 )
 
 
+
                 if trade:
+
 
                     self.trade_repository.save(
                         trade
@@ -270,7 +298,7 @@ class AtlasEngine:
 
 
     # =====================================================
-    # FULL SEARCH
+    # SEARCH AND TRADE
     # =====================================================
 
     def search_and_trade(
@@ -284,6 +312,7 @@ class AtlasEngine:
         )
 
 
+
         if opportunity is None:
 
             return None
@@ -291,8 +320,11 @@ class AtlasEngine:
 
 
         _, trade = self.analyse(
+
             opportunity.symbol,
+
             scans
+
         )
 
 
@@ -316,7 +348,9 @@ class AtlasEngine:
         trades = self.trade_repository.open_trades()
 
 
+
         for trade in trades:
+
 
             self.session.portfolio.add_trade(
                 trade
@@ -334,21 +368,37 @@ class AtlasEngine:
         metrics = self.performance_service.summary()
 
 
+
         equity = metrics.get(
+
             "equity",
+
             self.session.portfolio.account_balance
+
         )
 
 
-        # Only record equity when it changes
 
-        if equity != self.last_equity:
+        latest = self.equity_history_repository.latest()
+
+
+
+        last_equity = None
+
+
+
+        if latest:
+
+            last_equity = latest["equity"]
+
+
+
+        if last_equity != equity:
+
 
             self.equity_history_repository.save(
                 equity
             )
-
-            self.last_equity = equity
 
 
 
@@ -376,6 +426,7 @@ class AtlasEngine:
         trades = self.trade_repository.open_trades()
 
 
+
         results = []
 
 
@@ -385,29 +436,41 @@ class AtlasEngine:
 
             try:
 
-                price = self.scanner.market.get_price(
+
+                current_price = self.scanner.market.get_price(
                     trade.symbol
                 )
 
 
             except Exception:
 
-                price = trade.entry
+
+                current_price = trade.entry
 
 
 
             state = self.trade_monitor.check_trade(
+
                 trade,
-                price
+
+                current_price
+
             )
 
 
+
             results.append(
+
                 {
+
                     "symbol": trade.symbol,
+
                     "state": state.value,
-                    "price": price
+
+                    "price": current_price,
+
                 }
+
             )
 
 

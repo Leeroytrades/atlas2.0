@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Assistant 2.3
 
 Equity History Repository
 """
@@ -13,15 +13,23 @@ from datetime import datetime
 class EquityHistoryRepository:
 
 
-    def __init__(self, database):
+    def __init__(
+        self,
+        database
+    ):
 
         self.database = database
 
 
 
+    # ---------------------------------------------------------
+    # Save Equity Point
+    # ---------------------------------------------------------
+
     def save(
         self,
-        equity: float
+        equity: float,
+        trade_id=None
     ):
 
         query = """
@@ -29,11 +37,12 @@ class EquityHistoryRepository:
         INSERT INTO equity_history
 
         (
+            trade_id,
             equity,
             timestamp
         )
 
-        VALUES (?,?)
+        VALUES (?,?,?)
 
         """
 
@@ -43,6 +52,7 @@ class EquityHistoryRepository:
             query,
 
             (
+                trade_id,
 
                 equity,
 
@@ -53,6 +63,43 @@ class EquityHistoryRepository:
         )
 
 
+
+    # ---------------------------------------------------------
+    # Latest Equity
+    # ---------------------------------------------------------
+
+    def latest(self):
+
+        query = """
+
+        SELECT *
+
+        FROM equity_history
+
+        ORDER BY id DESC
+
+        LIMIT 1
+
+        """
+
+
+        rows = self.database.fetch_all(
+            query
+        )
+
+
+        if not rows:
+
+            return None
+
+
+        return rows[0]
+
+
+
+    # ---------------------------------------------------------
+    # All History
+    # ---------------------------------------------------------
 
     def all(self):
 
