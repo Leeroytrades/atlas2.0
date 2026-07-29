@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Assistant 2.3
 
 Application Entry Point
 """
@@ -18,7 +18,6 @@ def main():
     atlas = AtlasEngine()
 
 
-
     print()
 
     print("Scanning Market...")
@@ -31,34 +30,23 @@ def main():
 
 
 
-    if scans:
+    trade = atlas.search_and_trade(
+
+        scans
+
+    )
 
 
-        best_symbol = scans[0].symbol
 
+    if trade:
 
-        score, trade = atlas.analyse(
+        print()
 
-            best_symbol
+        print(
+
+            f"Trade created: {trade.symbol}"
 
         )
-
-
-        if trade:
-
-            print(
-                f"Trade created: {trade.symbol}"
-            )
-
-        else:
-
-            print(
-                f"Existing position detected for {best_symbol}"
-            )
-
-            print(
-                "Trade creation skipped."
-            )
 
 
 
@@ -93,7 +81,6 @@ def main():
         current_equity=current_equity,
 
     )
-
 
 
     atlas.close()
