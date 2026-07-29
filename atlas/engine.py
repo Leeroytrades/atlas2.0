@@ -18,25 +18,20 @@ from __future__ import annotations
 
 
 from database.database import Database
-
 from database.trades import TradeRepository
-
 from database.equity_history import EquityHistoryRepository
-
 from database.journal import JournalRepository
 
 from services.performance_service import PerformanceService
 
 from atlas.session import Session
-
 from atlas.scanner import Scanner
 
 from risk.position_manager import PositionManager
-
 from risk.trade_monitor import TradeMonitor
+from risk.risk_manager import create_trade
 
 from performance.metrics import PerformanceMetrics
-
 
 
 class AtlasEngine:
@@ -44,89 +39,66 @@ class AtlasEngine:
 
     def __init__(self):
 
-
         # Database
 
         self.database = Database()
 
 
-
-        # Core session
+        # Session
 
         self.session = Session()
 
 
-
-        # Market scanner
+        # Scanner
 
         self.scanner = Scanner()
-
 
 
         # Repositories
 
         self.trade_repository = TradeRepository(
-
             self.database
-
         )
 
 
         self.equity_history_repository = EquityHistoryRepository(
-
             self.database
-
         )
 
 
         self.journal = JournalRepository(
-
             self.database
-
         )
 
 
-
-        # Risk / positions
+        # Risk
 
         self.position_manager = PositionManager(
-
             self.trade_repository
-
         )
 
 
-
-        # Trade monitoring
+        # Monitoring
 
         self.trade_monitor = TradeMonitor(
-
             self.trade_repository,
-
             self.journal
-
         )
-
 
 
         # Performance
 
         self.metrics = PerformanceMetrics(
-
             self.trade_repository
-
         )
 
 
         self.performance_service = PerformanceService(
-
             self.trade_repository
-
         )
 
 
-
-        # Restore portfolio
+        # Restore existing positions
 
         self.load_portfolio()
 
@@ -138,48 +110,36 @@ class AtlasEngine:
 
     def scan_market(self):
 
-
         return self.scanner.scan(
-
             self.session.watchlist.symbols
-
         )
 
 
 
     # ---------------------------------
-    # Analyse Symbol
+    # Analyse / Create Trade
     # ---------------------------------
 
     def analyse(
-
         self,
-
         symbol: str
-
     ):
 
 
         results = self.scan_market()
 
 
-
         score = next(
 
             (
-
                 item
-
                 for item in results
-
                 if item.symbol == symbol
-
             ),
 
             None
 
         )
-
 
 
         if score is None:
@@ -188,42 +148,58 @@ class AtlasEngine:
 
 
 
-        trade = None
+        if score.bias != "BUY":
+
+            return score, None
 
 
 
-        if score.bias == "BUY":
+        if not self.position_manager.can_open_position(symbol):
+
+            print(
+                f"Existing position detected for {symbol}"
+            )
+
+            return score, None
 
 
-            if self.position_manager.can_open_position(
 
-                symbol
-
-            ):
-
-
-                print(
-
-                    f"Trade opportunity found: {symbol}"
-
-                )
+        print(
+            f"Trade opportunity found: {symbol}"
+        )
 
 
-            else:
+        trade = create_trade(
+
+            symbol=symbol,
+
+            df=score.dataframe,
+
+            account_balance=self.session.portfolio.account_balance,
+
+            risk_percent=1.0,
+
+            direction="LONG",
+
+            confidence=score.confidence,
+
+        )
 
 
-                print(
+        if trade is None:
 
-                    f"Existing position detected for {symbol}"
+            return score, None
 
-                )
 
-                print(
 
-                    "Trade creation skipped."
+        self.trade_repository.save(
+            trade
+        )
 
-                )
 
+        self.session.portfolio.add_trade(
+            trade
+        )
 
 
         return score, trade
@@ -236,25 +212,19 @@ class AtlasEngine:
 
     def portfolio(self):
 
-
         return self.session.portfolio
 
 
 
     def load_portfolio(self):
 
-
         trades = self.trade_repository.open_trades()
-
 
 
         for trade in trades:
 
-
             self.session.portfolio.add_trade(
-
                 trade
-
             )
 
 
@@ -265,9 +235,7 @@ class AtlasEngine:
 
     def performance(self):
 
-
         metrics = self.performance_service.summary()
-
 
 
         equity = metrics.get(
@@ -279,11 +247,8 @@ class AtlasEngine:
         )
 
 
-
         self.equity_history_repository.save(
-
             equity
-
         )
 
 
@@ -297,7 +262,6 @@ class AtlasEngine:
 
     def equity_history(self):
 
-
         return self.equity_history_repository.all()
 
 
@@ -308,12 +272,10 @@ class AtlasEngine:
 
     def monitor_trades(self):
 
-
         trades = self.trade_repository.open_trades()
 
 
         results = []
-
 
 
         for trade in trades:
@@ -321,16 +283,12 @@ class AtlasEngine:
 
             try:
 
-
-                current_price = self.scanner.market_data.get_price(
-
+                current_price = self.scanner.market.get_history(
                     trade.symbol
-
-                )
+                )["Close"].iloc[-1]
 
 
             except Exception:
-
 
                 current_price = trade.entry
 
@@ -343,7 +301,6 @@ class AtlasEngine:
                 current_price
 
             )
-
 
 
             results.append(
@@ -361,7 +318,6 @@ class AtlasEngine:
             )
 
 
-
         return results
 
 
@@ -371,6 +327,5 @@ class AtlasEngine:
     # ---------------------------------
 
     def close(self):
-
 
         self.database.close()

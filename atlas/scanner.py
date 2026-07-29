@@ -7,16 +7,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from data.market_data import MarketData
-
 from indicators.composite import build_indicator_set
-
 from strategy.signal_generator import generate_scorecard
 
 
-@dataclass
+@dataclass(slots=True)
 class ScanResult:
 
     symbol: str
+
+    dataframe: object
 
     score: int
 
@@ -31,9 +31,12 @@ class Scanner:
 
         self.market = MarketData()
 
-    def scan(self, symbols: list[str]) -> list[ScanResult]:
+    def scan(
+        self,
+        symbols: list[str],
+    ) -> list[ScanResult]:
 
-        results = []
+        results: list[ScanResult] = []
 
         for symbol in symbols:
 
@@ -43,15 +46,24 @@ class Scanner:
 
                 df = build_indicator_set(df)
 
-                score = generate_scorecard(df)
+                scorecard = generate_scorecard(df)
 
                 results.append(
+
                     ScanResult(
+
                         symbol=symbol,
-                        score=score.total_score,
-                        bias=score.bias,
-                        confidence=score.confidence,
+
+                        dataframe=df,
+
+                        score=scorecard.total_score,
+
+                        bias=scorecard.bias,
+
+                        confidence=scorecard.confidence,
+
                     )
+
                 )
 
             except Exception as e:
@@ -59,8 +71,11 @@ class Scanner:
                 print(f"{symbol}: {e}")
 
         results.sort(
+
             key=lambda x: x.score,
+
             reverse=True,
+
         )
 
         return results

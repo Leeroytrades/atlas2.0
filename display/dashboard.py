@@ -6,7 +6,7 @@ Main Dashboard Display
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.console import Group
+from rich.table import Table
 
 from display.scanner_table import scanner_table
 from display.portfolio import portfolio_table
@@ -15,6 +15,7 @@ from display.equity import equity_table
 
 
 console = Console()
+
 
 
 def show_dashboard(
@@ -29,10 +30,6 @@ def show_dashboard(
     """
 
 
-    # -------------------------
-    # Market Scanner
-    # -------------------------
-
     console.print(
         Panel(
             scanner_table(scans),
@@ -40,10 +37,6 @@ def show_dashboard(
         )
     )
 
-
-    # -------------------------
-    # Portfolio
-    # -------------------------
 
     console.print(
         Panel(
@@ -53,10 +46,6 @@ def show_dashboard(
     )
 
 
-    # -------------------------
-    # Performance
-    # -------------------------
-
     console.print(
         Panel(
             performance_table(metrics),
@@ -64,10 +53,6 @@ def show_dashboard(
         )
     )
 
-
-    # -------------------------
-    # Equity Statistics
-    # -------------------------
 
     console.print(
         Panel(
@@ -84,51 +69,48 @@ def show_dashboard(
     # Equity Curve
     # -------------------------
 
-    if equity_history:
+    clean_history = []
 
-        clean_history = []
+
+    if equity_history:
 
         for row in equity_history:
 
             try:
 
-                if row[1] is not None:
+                clean_history.append(
 
-                    clean_history.append(
-                        (
-                            row[0],
-                            float(row[1])
-                        )
+                    float(
+                        row["equity"]
                     )
 
+                )
+
             except Exception:
+
                 continue
 
 
-        if clean_history:
 
-            chart = build_equity_panel(
+    if clean_history:
+
+        console.print(
+
+            build_equity_panel(
                 clean_history
             )
 
-            console.print(chart)
-
-        else:
-
-            console.print(
-                Panel(
-                    "No equity history available",
-                    title="Equity Curve"
-                )
-            )
+        )
 
     else:
 
         console.print(
+
             Panel(
                 "No equity history available",
                 title="Equity Curve"
             )
+
         )
 
 
@@ -139,16 +121,15 @@ def build_equity_panel(history):
     Simple equity history display.
     """
 
-    from rich.table import Table
-
-
     table = Table(
         title="Equity Curve"
     )
 
+
     table.add_column(
         "Point"
     )
+
 
     table.add_column(
         "Equity",
@@ -156,11 +137,14 @@ def build_equity_panel(history):
     )
 
 
-    for index, item in enumerate(history):
+    for index, equity in enumerate(history):
 
         table.add_row(
+
             str(index + 1),
-            f"${item[1]:,.2f}"
+
+            f"${equity:,.2f}"
+
         )
 
 
