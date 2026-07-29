@@ -1,9 +1,16 @@
 """
-Atlas AI Trading Platform
+Atlas AI Trading Assistant 2.3.3
 
 Signal Generator
 
-Creates trading decisions from analysis scores.
+Creates higher quality trading signals.
+
+Adds:
+- Trend confirmation
+- Momentum confirmation
+- Volatility confirmation
+- Volume confirmation
+- EMA20 pullback filter
 """
 
 from __future__ import annotations
@@ -20,30 +27,22 @@ from scoring.volume_score import calculate_volume_score
 
 
 def generate_scorecard(
-    df: pd.DataFrame,
+    df: pd.DataFrame
 ) -> Scorecard:
-    """
-    Generate complete market scorecard.
-    """
 
-    trend = calculate_trend_score(
-        df
-    )
 
-    momentum = calculate_momentum_score(
-        df
-    )
+    trend = calculate_trend_score(df)
 
-    volatility = calculate_volatility_score(
-        df
-    )
+    momentum = calculate_momentum_score(df)
 
-    volume = calculate_volume_score(
-        df
-    )
+    volatility = calculate_volatility_score(df)
+
+    volume = calculate_volume_score(df)
+
 
 
     score = Scorecard()
+
 
 
     score.trend = trend.score
@@ -55,62 +54,190 @@ def generate_scorecard(
     score.volume = volume.score
 
 
-    # ---------------------------------
-    # TOTAL SCORE
-    # ---------------------------------
 
     score.total_score = (
 
         score.trend
 
         +
+
         score.momentum
 
         +
+
         score.volatility
 
         +
+
         score.volume
 
     )
 
 
-    # ---------------------------------
-    # MARKET BIAS
-    # ---------------------------------
 
-    if score.total_score >= 70:
+    row = df.iloc[-1]
+
+
+
+    adx = float(
+        row.get(
+            "ADX",
+            0
+        )
+    )
+
+
+    di_plus = float(
+        row.get(
+            "DI_PLUS",
+            0
+        )
+    )
+
+
+    di_minus = float(
+        row.get(
+            "DI_MINUS",
+            0
+        )
+    )
+
+
+    rsi = float(
+        row.get(
+            "RSI",
+            50
+        )
+    )
+
+
+    close = float(
+        row.get(
+            "Close",
+            0
+        )
+    )
+
+
+    ema20 = float(
+        row.get(
+            "EMA_20",
+            close
+        )
+    )
+
+
+
+    trend_confirmed = (
+
+        adx >= 20
+
+        and
+
+        di_plus > di_minus
+
+    )
+
+
+
+    momentum_confirmed = (
+
+        rsi > 45
+
+        and
+
+        rsi < 70
+
+    )
+
+
+
+    volatility_confirmed = (
+
+        volatility.score >= 0
+
+    )
+
+
+
+    volume_confirmed = (
+
+        volume.score >= 0
+
+    )
+
+
+
+    #
+    # Prevent late entries
+    # Only buy close to EMA20
+    #
+
+    pullback_confirmed = (
+
+        close <= ema20 * 1.02
+
+    )
+
+
+
+    if (
+
+        score.total_score >= 70
+
+        and
+
+        trend_confirmed
+
+        and
+
+        momentum_confirmed
+
+        and
+
+        volatility_confirmed
+
+        and
+
+        volume_confirmed
+
+        and
+
+        pullback_confirmed
+
+    ):
+
 
         score.bullish = True
 
         score.signal = "BUY"
 
 
+
     elif score.total_score <= 30:
+
 
         score.bearish = True
 
         score.signal = "SELL"
 
 
+
     else:
+
 
         score.signal = "HOLD"
 
 
 
-    # ---------------------------------
-    # CONFIDENCE
-    # ---------------------------------
+    score.confidence = min(
 
-    score.confidence = (
+        abs(score.total_score) / 100,
 
-        abs(score.total_score)
-
-        /
-        100
+        1.0
 
     )
+
 
 
     return score
@@ -118,48 +245,45 @@ def generate_scorecard(
 
 
 
+
 def explain_signal(
-    df: pd.DataFrame,
+    df: pd.DataFrame
 ) -> list[str]:
-    """
-    Returns reasons behind the signal.
-    """
-
-    trend = calculate_trend_score(
-        df
-    )
-
-    momentum = calculate_momentum_score(
-        df
-    )
-
-    volatility = calculate_volatility_score(
-        df
-    )
-
-    volume = calculate_volume_score(
-        df
-    )
 
 
-    reasons: list[str] = []
+    trend = calculate_trend_score(df)
+
+    momentum = calculate_momentum_score(df)
+
+    volatility = calculate_volatility_score(df)
+
+    volume = calculate_volume_score(df)
+
+
+
+    reasons = []
+
 
 
     reasons.extend(
         trend.reasons
     )
 
+
     reasons.extend(
         momentum.reasons
     )
+
 
     reasons.extend(
         volatility.reasons
     )
 
+
     reasons.extend(
         volume.reasons
     )
+
 
 
     return reasons

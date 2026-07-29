@@ -1,15 +1,25 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Assistant 2.4
 
-Backtesting Trade Simulator
+Professional Backtesting Trade Simulator
 
-Converts Atlas strategy signals into
-simulated trades and equity results.
+Features:
+
+- ATR based stop loss
+- ATR based take profit
+- Trailing stop
+- Maximum holding period
+- Commission simulation
+- Slippage simulation
+- Equity curve tracking
+- Trade lifecycle handling
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+from models.trade import Trade
 
 
 
@@ -24,9 +34,13 @@ class SimulatedTrade:
 
     exit: float
 
+    quantity: int
+
     profit_loss: float
 
     result: str
+
+    candles_held: int
 
 
 
@@ -35,170 +49,314 @@ class Simulator:
 
     def __init__(
         self,
-        starting_cash: float = 100000.0
+        starting_cash: float = 100000.0,
+        commission: float = 1.0,
+        slippage: float = 0.01
     ):
 
         self.starting_cash = starting_cash
 
         self.cash = starting_cash
 
-        self.trades = []
+        self.commission = commission
+
+        self.slippage = slippage
+
+        self.trades: list[SimulatedTrade] = []
 
         self.equity_curve = [
-
             starting_cash
-
         ]
 
 
 
-    def execute(
+    def simulate_trade(
         self,
-        symbol: str,
-        price: float,
-        direction: str,
-        future_price: float
+        trade: Trade,
+        dataframe,
+        index: int
     ):
 
+        """
+        Simulates a trade using ATR risk management.
+        """
 
-        if direction == "LONG":
 
-            pnl = future_price - price
+        entry = trade.entry
 
 
-        elif direction == "SHORT":
+        try:
 
-            pnl = price - future_price
+            atr = float(
+                dataframe["ATR"].iloc[index]
+            )
+
+        except Exception:
+
+            atr = entry * 0.02
+
+
+
+        # ==========================
+        # ATR Risk Model
+        # ==========================
+
+        stop_distance = atr * 2
+
+        target_distance = atr * 4
+
+
+        if trade.direction == "LONG":
+
+            stop_loss = entry - stop_distance
+
+            take_profit = entry + target_distance
 
 
         else:
 
-            return None
+            stop_loss = entry + stop_distance
+
+            take_profit = entry - target_distance
 
 
 
-        trade = SimulatedTrade(
+        exit_price = None
 
-            symbol=symbol,
-
-            direction=direction,
-
-            entry=round(price, 2),
-
-            exit=round(future_price, 2),
-
-            profit_loss=round(pnl, 2),
-
-            result="WIN" if pnl > 0 else "LOSS"
-
-        )
+        candles_held = 0
 
 
-        self.trades.append(trade)
+        highest_price = entry
 
-
-        self.cash += pnl
-
-
-        self.equity_curve.append(
-
-            round(self.cash, 2)
-
-        )
-
-
-        return trade
+        lowest_price = entry
 
 
 
-    def run(
-        self,
-        symbol,
-        dataframe,
-        signals
-    ):
-
-        """
-        Run full backtest.
-
-        Uses next candle close as exit.
-        """
-
-
-        for signal in signals:
-
-
-            index = signal["index"]
-
-
-            if index + 1 >= len(dataframe):
-
-                continue
+        future = dataframe.iloc[
+            index + 1:
+        ]
 
 
 
-            bias = signal["bias"]
+        for _, candle in future.iterrows():
+
+
+            candles_held += 1
+
+
+            high = float(
+                candle["High"]
+            )
+
+            low = float(
+                candle["Low"]
+            )
 
 
 
-            if bias == "BUY":
+            # ==========================
+            # LONG MANAGEMENT
+            # ==========================
 
-                direction = "LONG"
+            if trade.direction == "LONG":
 
 
-            elif bias == "SELL":
+                if high > highest_price:
 
-                direction = "SHORT"
+                    highest_price = high
 
+
+
+                trailing_stop = (
+
+                    highest_price
+
+                    -
+
+                    atr * 1.5
+
+                )
+
+
+
+                if low <= stop_loss:
+
+                    exit_price = stop_loss
+
+                    break
+
+
+
+                if low <= trailing_stop:
+
+                    exit_price = trailing_stop
+
+                    break
+
+
+
+                if high >= take_profit:
+
+                    exit_price = take_profit
+
+                    break
+
+
+
+            # ==========================
+            # SHORT MANAGEMENT
+            # ==========================
 
             else:
 
-                continue
+
+                if low < lowest_price:
+
+                    lowest_price = low
 
 
 
-            entry = float(
+                trailing_stop = (
 
-                dataframe["Close"].iloc[index]
+                    lowest_price
 
-            )
+                    +
 
+                    atr * 1.5
+
+                )
+
+
+
+                if high >= stop_loss:
+
+                    exit_price = stop_loss
+
+                    break
+
+
+
+                if high >= trailing_stop:
+
+                    exit_price = trailing_stop
+
+                    break
+
+
+
+                if low <= take_profit:
+
+                    exit_price = take_profit
+
+                    break
+
+
+
+            # Maximum holding period
+
+            if candles_held >= 50:
+
+                exit_price = float(
+                    candle["Close"]
+                )
+
+                break
+
+
+
+        if exit_price is None:
 
             exit_price = float(
-
-                dataframe["Close"].iloc[index + 1]
-
+                dataframe["Close"].iloc[-1]
             )
 
 
 
-            self.execute(
+        # Slippage
 
-                symbol,
+        if trade.direction == "LONG":
 
-                entry,
+            exit_price -= self.slippage
 
-                direction,
+        else:
 
-                exit_price
-
-            )
+            exit_price += self.slippage
 
 
 
-        return self.results()
+        trade.close(
+            exit_price
+        )
 
 
 
-    def equity(self):
+        # Commission
 
-        return round(
+        profit_loss = (
 
-            self.cash,
+            trade.profit_loss
 
-            2
+            -
+
+            self.commission
 
         )
+
+
+
+        simulated = SimulatedTrade(
+
+            symbol=trade.symbol,
+
+            direction=trade.direction,
+
+            entry=round(
+                entry,
+                2
+            ),
+
+            exit=round(
+                exit_price,
+                2
+            ),
+
+            quantity=trade.quantity,
+
+            profit_loss=round(
+                profit_loss,
+                2
+            ),
+
+            result=(
+
+                "WIN"
+
+                if profit_loss > 0
+
+                else "LOSS"
+
+            ),
+
+            candles_held=candles_held
+
+        )
+
+
+
+        self.trades.append(
+            simulated
+        )
+
+
+        self.cash += profit_loss
+
+
+        self.equity_curve.append(
+            self.cash
+        )
+
+
+        return simulated
 
 
 
@@ -237,6 +395,7 @@ class Simulator:
         )
 
 
+
         gross_loss = abs(
 
             sum(
@@ -253,18 +412,18 @@ class Simulator:
 
         profit_factor = (
 
-            round(
+            gross_profit / gross_loss
 
-                gross_profit / gross_loss,
+            if gross_loss
 
-                2
+            else float("inf")
 
-            )
+        )
 
-            if gross_loss > 0
 
-            else "INF"
 
+        total = len(
+            self.trades
         )
 
 
@@ -274,49 +433,31 @@ class Simulator:
 
             "starting_cash":
 
-                self.starting_cash,
+                round(
+                    self.starting_cash,
+                    2
+                ),
 
 
             "ending_equity":
 
-                round(self.cash, 2),
+                round(
+                    self.cash,
+                    2
+                ),
 
 
             "net_profit":
 
                 round(
-
                     self.cash - self.starting_cash,
-
                     2
-
-                ),
-
-
-            "return_percent":
-
-                round(
-
-                    (
-
-                    (self.cash - self.starting_cash)
-
-                    /
-
-                    self.starting_cash
-
-                    )
-
-                    * 100,
-
-                    2
-
                 ),
 
 
             "total_trades":
 
-                len(self.trades),
+                total,
 
 
             "wins":
@@ -334,24 +475,52 @@ class Simulator:
                 round(
 
                     len(wins)
-
                     /
+                    total
+                    *
+                    100
 
-                    len(self.trades)
+                    if total
 
-                    * 100,
+                    else 0,
 
                     2
 
-                )
-
-                if self.trades
-
-                else 0,
+                ),
 
 
             "profit_factor":
 
-                profit_factor
+                round(
+                    profit_factor,
+                    2
+                )
+
+                if profit_factor != float("inf")
+
+                else "INF",
+
+
+            "average_trade":
+
+                round(
+
+                    (
+
+                        self.cash
+                        -
+                        self.starting_cash
+
+                    )
+                    /
+                    total
+
+                    if total
+
+                    else 0,
+
+                    2
+
+                )
 
         }

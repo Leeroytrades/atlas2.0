@@ -1,13 +1,13 @@
 """
-Atlas AI Trading Platform
+Atlas AI Trading Assistant 2.3.4
 
 Risk Manager
 
 Creates trade plans using:
 
 - Account risk
-- Position sizing
-- Stop placement
+- ATR volatility stops
+- Dynamic position sizing
 - Reward targets
 """
 
@@ -51,6 +51,27 @@ def get_current_price(df):
 
 
 
+def get_atr(df):
+
+    """
+    Get latest ATR value.
+    """
+
+    if "ATR" in df.columns:
+
+        atr = float(
+            df["ATR"].iloc[-1]
+        )
+
+        if atr > 0:
+
+            return atr
+
+
+    return 0
+
+
+
 def calculate_position_size(
     account_balance: float,
     risk_percent: float,
@@ -59,7 +80,7 @@ def calculate_position_size(
 ):
 
     """
-    Calculate trade quantity based on risk.
+    Calculate position size based on risk.
     """
 
     risk_amount = (
@@ -67,13 +88,16 @@ def calculate_position_size(
         account_balance
 
         *
+
         (risk_percent / 100)
 
     )
 
 
     distance = abs(
+
         entry - stop_loss
+
     )
 
 
@@ -82,11 +106,13 @@ def calculate_position_size(
         return 0, risk_amount
 
 
+
     quantity = int(
 
         risk_amount
 
         /
+
         distance
 
     )
@@ -106,7 +132,7 @@ def create_trade(
 ):
 
     """
-    Create a new Trade object.
+    Create a Trade object using ATR volatility.
     """
 
     entry = get_current_price(
@@ -114,18 +140,53 @@ def create_trade(
     )
 
 
+    atr = get_atr(
+        df
+    )
+
+
+    #
+    # ATR fallback protection
+    #
+
+    if atr == 0:
+
+        atr = entry * 0.02
+
+
+
     if direction == "LONG":
 
-        stop_loss = entry * 0.95
 
-        take_profit = entry * 1.10
+        stop_loss = entry - (
+
+            atr * 2
+
+        )
+
+
+        take_profit = entry + (
+
+            atr * 4
+
+        )
 
 
     else:
 
-        stop_loss = entry * 1.05
 
-        take_profit = entry * 0.90
+        stop_loss = entry + (
+
+            atr * 2
+
+        )
+
+
+        take_profit = entry - (
+
+            atr * 4
+
+        )
 
 
 
@@ -140,6 +201,7 @@ def create_trade(
         stop_loss,
 
     )
+
 
 
     if quantity <= 0:
@@ -167,6 +229,7 @@ def create_trade(
     )
 
 
+
     return Trade(
 
         symbol=symbol,
@@ -186,8 +249,11 @@ def create_trade(
         reward_amount=reward_amount,
 
         risk_reward=round(
+
             risk_reward,
+
             2
+
         ),
 
         confidence=confidence,

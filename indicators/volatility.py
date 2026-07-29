@@ -1,7 +1,16 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Assistant 2.3
 
-Volatility Indicators
+Volatility & Trend Strength Indicators
+
+Adds:
+
+- ATR
+- Bollinger Bands
+- Bollinger Width
+- ADX
+- Positive Directional Indicator
+- Negative Directional Indicator
 """
 
 from __future__ import annotations
@@ -13,28 +22,24 @@ from ta.volatility import (
     BollingerBands,
 )
 
+from ta.trend import ADXIndicator
 
-def add_volatility_indicators(df: pd.DataFrame) -> pd.DataFrame:
+
+
+def add_volatility_indicators(
+    df: pd.DataFrame
+) -> pd.DataFrame:
+
     """
-    Adds volatility indicators.
-
-    Indicators
-    ----------
-    ATR (14)
-
-    Bollinger Bands (20)
-
-    Upper Band
-    Middle Band
-    Lower Band
-
-    Band Width
+    Adds volatility and trend strength indicators.
     """
 
     data = df.copy()
 
+
+
     # ==========================
-    # Average True Range
+    # ATR
     # ==========================
 
     atr = AverageTrueRange(
@@ -46,6 +51,8 @@ def add_volatility_indicators(df: pd.DataFrame) -> pd.DataFrame:
 
     data["ATR"] = atr.average_true_range()
 
+
+
     # ==========================
     # Bollinger Bands
     # ==========================
@@ -56,12 +63,69 @@ def add_volatility_indicators(df: pd.DataFrame) -> pd.DataFrame:
         window_dev=2,
     )
 
-    data["BB_UPPER"] = bb.bollinger_hband()
-    data["BB_MIDDLE"] = bb.bollinger_mavg()
-    data["BB_LOWER"] = bb.bollinger_lband()
+
+    data["BB_UPPER"] = (
+        bb.bollinger_hband()
+    )
+
+
+    data["BB_MIDDLE"] = (
+        bb.bollinger_mavg()
+    )
+
+
+    data["BB_LOWER"] = (
+        bb.bollinger_lband()
+    )
+
 
     data["BB_WIDTH"] = (
-        data["BB_UPPER"] - data["BB_LOWER"]
-    ) / data["BB_MIDDLE"]
+
+        (
+            data["BB_UPPER"]
+            -
+            data["BB_LOWER"]
+        )
+
+        /
+
+        data["BB_MIDDLE"]
+
+    )
+
+
+
+    # ==========================
+    # ADX Trend Strength
+    # ==========================
+
+    adx = ADXIndicator(
+
+        high=data["High"],
+
+        low=data["Low"],
+
+        close=data["Close"],
+
+        window=14,
+
+    )
+
+
+    data["ADX"] = (
+        adx.adx()
+    )
+
+
+    data["+DI"] = (
+        adx.adx_pos()
+    )
+
+
+    data["-DI"] = (
+        adx.adx_neg()
+    )
+
+
 
     return data

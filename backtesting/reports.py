@@ -1,14 +1,16 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Assistant 2.4
 
-Backtesting Reports
+Advanced Backtest Reports
 
-Generates performance statistics
-from simulated trades.
+Calculates:
+- Performance
+- Risk
+- Drawdown
+- Expectancy
 """
 
 from __future__ import annotations
-
 
 
 class BacktestReport:
@@ -30,30 +32,28 @@ class BacktestReport:
 
 
         total = len(
-
             self.trades
-
         )
 
 
         wins = [
 
-            trade
+            t
 
-            for trade in self.trades
+            for t in self.trades
 
-            if trade.profit_loss > 0
+            if t.profit_loss > 0
 
         ]
 
 
         losses = [
 
-            trade
+            t
 
-            for trade in self.trades
+            for t in self.trades
 
-            if trade.profit_loss < 0
+            if t.profit_loss < 0
 
         ]
 
@@ -61,21 +61,20 @@ class BacktestReport:
 
         gross_profit = sum(
 
-            trade.profit_loss
+            t.profit_loss
 
-            for trade in wins
+            for t in wins
 
         )
-
 
 
         gross_loss = abs(
 
             sum(
 
-                trade.profit_loss
+                t.profit_loss
 
-                for trade in losses
+                for t in losses
 
             )
 
@@ -115,27 +114,95 @@ class BacktestReport:
 
 
 
+        average_win = (
+
+            gross_profit / len(wins)
+
+            if wins
+
+            else 0
+
+        )
+
+
+        average_loss = (
+
+            gross_loss / len(losses)
+
+            if losses
+
+            else 0
+
+        )
+
+
+
+        expectancy = (
+
+            (
+
+                win_rate / 100
+
+                *
+
+                average_win
+
+            )
+
+            -
+
+            (
+
+                (1 - win_rate / 100)
+
+                *
+
+                average_loss
+
+            )
+
+        )
+
+
+
         profit_factor = (
 
             gross_profit / gross_loss
 
             if gross_loss
 
-            else float("inf")
+            else 0
 
         )
 
 
 
-        ending_equity = (
+        equity = self.starting_cash
 
-            self.starting_cash
 
-            +
+        peak = equity
 
-            net_profit
+        max_drawdown = 0
 
-        )
+
+
+        for trade in self.trades:
+
+
+            equity += trade.profit_loss
+
+
+            if equity > peak:
+
+                peak = equity
+
+
+            drawdown = peak - equity
+
+
+            if drawdown > max_drawdown:
+
+                max_drawdown = drawdown
 
 
 
@@ -145,33 +212,24 @@ class BacktestReport:
             "starting_cash":
 
                 round(
-
                     self.starting_cash,
-
                     2
-
                 ),
 
 
             "ending_equity":
 
                 round(
-
-                    ending_equity,
-
+                    equity,
                     2
-
                 ),
 
 
             "net_profit":
 
                 round(
-
                     net_profit,
-
                     2
-
                 ),
 
 
@@ -179,23 +237,11 @@ class BacktestReport:
 
                 round(
 
-                    (
-
-                        net_profit
-
-                        /
-
-                        self.starting_cash
-
-                        *
-
-                        100
-
-                    )
-
-                    if self.starting_cash
-
-                    else 0,
+                    net_profit
+                    /
+                    self.starting_cash
+                    *
+                    100,
 
                     2
 
@@ -220,26 +266,48 @@ class BacktestReport:
             "win_rate":
 
                 round(
-
                     win_rate,
-
                     2
+                ),
 
+
+            "average_win":
+
+                round(
+                    average_win,
+                    2
+                ),
+
+
+            "average_loss":
+
+                round(
+                    average_loss,
+                    2
                 ),
 
 
             "profit_factor":
 
                 round(
-
                     profit_factor,
-
                     2
+                ),
 
+
+            "expectancy":
+
+                round(
+                    expectancy,
+                    2
+                ),
+
+
+            "max_drawdown":
+
+                round(
+                    max_drawdown,
+                    2
                 )
-
-                if profit_factor != float("inf")
-
-                else "INF"
 
         }
