@@ -1,340 +1,463 @@
-eplace PROJECT_STATUS.md with:
-# Atlas AI Trading Assistant 2.1
-
-## Project Status
+PROJECT_STATUS.md
+# Atlas AI Trading Assistant 3.0
+# Project Status
 
 Date:
-21 July 2026
-
+29 July 2026
 
 ---
 
 # Current State
 
-Atlas is stable and running.
+Atlas is now a functioning algorithmic trading research platform.
 
-Latest successful command:
+The architecture is stable.
 
-
-python main.py
-
-
-
-Dashboard currently displays:
-
-✅ Market Scanner  
-✅ Portfolio Overview  
-✅ Performance Analytics  
-✅ Equity Statistics  
-✅ Equity Curve section  
-
+The next stage is transitioning from backtesting into paper trading.
 
 ---
 
-# Completed Milestones
+# Completed
 
-
-## Milestone 1
-
-Project foundation
-
-Completed:
+## Foundation
 
 ✅ Python environment  
-✅ Project structure  
 ✅ Git repository  
-✅ Dependencies  
+✅ Modular architecture  
+✅ Dataclasses  
+✅ Type hints  
 
 
 ---
 
-## Milestone 2
+# Data Layer
 
-Trading Core
+Completed.
 
-Completed:
-
-✅ Market data layer  
-✅ Indicators  
-✅ Composite scoring  
-✅ Strategy engine  
-✅ Signal generation  
+Files:
 
 
----
+data/market_data.py
 
-## Milestone 3
 
-Risk System
+Provides:
 
-Completed:
-
-✅ Position manager  
-✅ Position sizing  
-✅ Stop loss  
-✅ Take profit  
-✅ Trade model  
+- Historical data
+- Current market data
 
 
 ---
 
-## Milestone 4
+# Indicators
 
-Database Layer
+Completed.
 
-Completed:
+Implemented:
 
-✅ SQLite database  
-✅ Trade persistence  
-✅ Portfolio storage  
-✅ Journal storage  
-✅ Equity history storage  
+- SMA
+- EMA
+- ADX
+- DI+
+- DI-
+- RSI
+- ATR
+- Volatility metrics
+- Volume metrics
 
 
 ---
 
-## Milestone 5
+# Strategy Engine
+
+Completed.
+
+File:
+
+
+strategy/signal_generator.py
+
+
+Generates:
+
+- Scorecard
+- Signal
+- Confidence
+- Explanation reasons
+
+
+---
+
+# Risk System
+
+Completed.
+
+Files:
+
+
+risk/risk_manager.py
+risk/position_manager.py
+risk/trade_monitor.py
+
+
+Features:
+
+- Position sizing
+- Risk calculation
+- Stops
+- Targets
+- Monitoring
+
+
+---
+
+# Backtesting
+
+Completed.
+
+Files:
+
+
+backtesting/
+
+
+Working:
+
+✅ Single market testing
+
+✅ Multi market testing
+
+✅ Trade simulation
+
+✅ ATR management
+
+✅ Trailing stops
+
+✅ Reports
+
+✅ Analytics
+
+
+---
+
+# Latest Backtest
+
+Multi market:
+
+
+AAPL
+MSFT
+NVDA
+SPY
+QQQ
+
+
+Results:
+
+
+Total Trades:
+99
+
+Wins:
+40
+
+Combined Profit:
++1838.89
+
+Win Rate:
+40.4%
+
+
+
+Best markets:
+
+MSFT
+QQQ
+AAPL
+
+
+SPY currently excluded.
+
+---
+
+# Watchlist System
+
+Completed.
+
+Files:
+
+
+atlas/watchlist.py
+
+watchlist/market_selector.py
+
+
+Current process:
+
 
 Analytics
 
-Completed:
+↓
 
-✅ Performance metrics  
-✅ Equity tracking  
-✅ Dashboard integration  
+Market Selector
 
+↓
 
----
+watchlist.txt
 
-## Milestone 6
+↓
 
-Trade Monitoring
-
-Completed:
-
-✅ Trade monitor  
-✅ Trade states  
-✅ Target detection  
-✅ Stop detection  
-✅ Trade lifecycle connection  
-
-
----
-
-# Current Architecture
+Scanner
 
 
 
-main.py
+Current watchlist:
 
-|
-v
 
-AtlasEngine
-
-|
-+-- Session
-|
-+-- Scanner
-|
-+-- Database
-|
-+-- Trade Repository
-|
-+-- Journal Repository
-|
-+-- Equity Repository
-|
-+-- Position Manager
-|
-+-- Trade Monitor
-|
-+-- Performance Service
+MSFT
+QQQ
+AAPL
 
 
 ---
 
-# Current Known Limitations
+# Database
+
+Completed.
+
+SQLite:
 
 
-The system currently does NOT:
-
-❌ Automatically create trades from BUY signals
-
-❌ Connect to a broker
-
-❌ Stream live market prices
-
-❌ Execute real orders
-
-❌ Run full backtests
+atlas.db
 
 
-These are next development stages.
 
+Repositories:
+
+
+TradeRepository
+
+EquityHistoryRepository
+
+JournalRepository
+
+
+---
+
+# Engine
+
+Completed.
+
+File:
+
+
+atlas/engine.py
+
+
+
+Controls:
+
+- Database
+- Session
+- Scanner
+- Portfolio
+- Risk
+- Monitoring
+- Performance
+
+
+---
+
+# Services
+
+Created:
+
+
+services/
+
+
+Current:
+
+
+execution_service.py
+
+performance_service.py
+
+portfolio_service.py
+
+scanner_service.py
+
+strategy_service.py
+
+trade_service.py
+
+
+---
+
+# Known Improvements Needed
+
+## 1. Paper Trading Engine
+
+Priority: HIGH
+
+Need:
+
+- Simulated order execution
+- Open position tracking
+- Closing logic
+- Real-time P/L
+
+
+---
+
+## 2. Signal Explanation
+
+Priority: HIGH
+
+Need:
+
+Every signal should explain:
+
+- Why trade exists
+- Technical reasons
+- Risk
+- Confidence
+
+
+---
+
+## 3. Portfolio Risk Controls
+
+Priority: HIGH
+
+Add:
+
+- Maximum positions
+- Daily loss limit
+- Exposure limits
+- Correlation checks
+
+
+---
+
+## 4. Dashboard Upgrade
+
+Need:
+
+Display:
+
+- Current signals
+- Open positions
+- Equity
+- Risk
+- Performance
+
+
+---
+
+# Do Not Change Unless Necessary
+
+Stable modules:
+
+
+backtesting/
+indicators/
+scoring/
+strategy/
+database/
+
+
+
+They are currently working.
 
 ---
 
 # Next Session Starting Point
 
+Start with:
 
-## Atlas 2.2 - Trade Execution Engine
+## Paper Trading Execution Layer
+
+Review:
+
+
+services/execution_service.py
 
 
 Goal:
 
-Convert:
+Connect:
 
 
-Scanner Signal
-|
-v
-Strategy Decision
-|
-v
-Trade Creation
-|
-v
-Database
-|
-v
+Scanner
+
+↓
+
+Signal
+
+↓
+
+Risk Manager
+
+↓
+
+Execution Service
+
+↓
+
 Portfolio
-|
-v
-Journal
 
+↓
 
-
-Required work:
-
-1. Build Trade Execution Service
-
-2. Connect BUY signals to TradeRepository
-
-3. Automatically create trades
-
-4. Update portfolio after execution
-
-5. Record journal events
-
-6. Test full lifecycle
+Database
 
 
 ---
 
-# Important Files
+# Development Method Going Forward
+
+Always:
+
+1. Inspect current file
+
+2. Decide exact change
+
+3. Replace entire file
+
+4. Run test
+
+5. Commit
 
 
-Core:
-
-
-atlas/engine.py
-main.py
-
-
-
-Database:
-
-
-database/database.py
-database/trades.py
-database/journal.py
-database/equity_history.py
-
-
-
-Risk:
-
-
-risk/position_manager.py
-risk/trade_monitor.py
-risk/trade_state.py
-
-
-
-Performance:
-
-
-performance/metrics.py
-services/performance_service.py
-
-
+Avoid repeated partial edits.
 
 ---
 
-# Last Successful Test
+# Current Completion Estimate
 
+Architecture:
+90%
 
-Command:
+Backtesting:
+95%
 
+Research:
+90%
 
-python main.py
+Paper Trading:
+40%
 
-
-
-Result:
-
-
-Market Scanner loaded
-
-Portfolio loaded
-
-Performance Analytics loaded
-
-Equity Statistics loaded
-
-No errors
-
-
+Live Trading:
+10%
 
 ---
 
-# Git Status Before Closing
+# Final Objective
 
+Create a professional AI assisted trading platform capable of:
 
-Remember tomorrow:
-
-
-git status
-
-git add .
-
-git commit -m "Atlas 2.1 stable checkpoint"
-
-git push
-
-
-
----
-
-# Resume Instructions
-
-
-When continuing:
-
-1. Activate virtual environment
-
-
-.venv\Scripts\activate
-
-
-
-2. Open project:
-
-
-cd C:\Users\Admin\Atlas2.0
-
-
-
-3. Run:
-
-
-python main.py
-
-
-
-4. Continue from:
-
-## Trade Execution Engine
-
-Signal -> Trade -> Database -> Portfolio -> Journal
+- Finding opportunities
+- Explaining decisions
+- Managing risk
+- Tracking performance
+- Executing paper trades
+- Eventually connecting to a broker

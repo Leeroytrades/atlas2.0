@@ -1,92 +1,44 @@
-# Atlas AI Trading Assistant 2.1
+# Atlas AI Trading Assistant 3.0
 
-## Overview
+Professional modular algorithmic trading platform built in Python.
 
-Atlas AI Trading Assistant is a modular Python trading platform designed for professional-style market analysis, risk management, trade tracking, and future broker integration.
+Atlas is designed as a complete trading research and execution framework:
 
-The project is built with a clean architecture allowing new features to be added without rebuilding the core system.
-
-Current focus:
-
-- Market scanning
+- Market data ingestion
 - Technical analysis
-- Signal scoring
+- AI-style scoring engine
 - Risk management
+- Backtesting
+- Market selection
 - Portfolio tracking
 - Trade database
-- Performance analytics
-- Trade journal
-- Equity tracking
-- Trade monitoring
-
+- Dashboard
+- Paper trading preparation
+- Broker integration ready architecture
 
 ---
 
 # Current Version
 
-## Atlas AI Trading Assistant 2.1
-
+Atlas AI Trading Assistant 3.0
 
 Status:
 
-✅ Core engine operational  
-✅ Database persistence operational  
-✅ Scanner operational  
-✅ Portfolio system operational  
-✅ Performance analytics operational  
-✅ Equity history operational  
-✅ Trade journal operational  
-✅ Trade monitoring operational  
-
+🟢 Core architecture complete  
+🟢 Backtesting operational  
+🟢 Multi-market testing operational  
+🟢 Market ranking operational  
+🟢 Dynamic watchlist operational  
+🟡 Paper trading preparation in progress  
+🔴 Live trading not enabled
 
 ---
 
-# Architecture
+# Project Architecture
 
 
-main.py
+Atlas2.0
 
-|
-v
-
-AtlasEngine
-
-|
-+----------------+
-|                |
-
-Session Database
-| |
-| +--> Trades
-| +--> Journal
-| +--> Equity History
-| +--> Portfolio
-|
-+--> Watchlist
-|
-+--> Scanner
-|
-+--> Risk Management
-|
-+--> Trade Monitor
-|
-+--> Performance Engine
-
-
-
----
-
-# Project Structure
-
-
-Atlas2.0/
-
-│
-├── main.py
-├── README.md
-├── PROJECT_STATUS.md
-├── watchlist.txt
-├── atlas.db
 │
 ├── atlas/
 │ ├── engine.py
@@ -94,221 +46,473 @@ Atlas2.0/
 │ ├── scanner.py
 │ └── watchlist.py
 │
+├── backtesting/
+│ ├── engine.py
+│ ├── simulator.py
+│ ├── strategy_runner.py
+│ ├── historical_data.py
+│ ├── reports.py
+│ ├── multi_engine.py
+│ ├── analytics.py
+│ └── atlas_strategy.py
+│
+├── data/
+│ └── market_data.py
+│
+├── indicators/
+│ ├── composite.py
+│ ├── trend.py
+│ ├── momentum.py
+│ ├── volatility.py
+│ └── volume.py
+│
+├── scoring/
+│ ├── trend_score.py
+│ ├── momentum_score.py
+│ ├── volatility_score.py
+│ └── volume_score.py
+│
+├── strategy/
+│ └── signal_generator.py
+│
+├── risk/
+│ ├── risk_manager.py
+│ ├── position_manager.py
+│ └── trade_monitor.py
+│
+├── services/
+│ ├── execution_service.py
+│ ├── performance_service.py
+│ ├── portfolio_service.py
+│ ├── scanner_service.py
+│ ├── strategy_service.py
+│ └── trade_service.py
+│
 ├── database/
 │ ├── database.py
 │ ├── trades.py
-│ ├── journal.py
 │ ├── equity_history.py
-│ ├── portfolio.py
-│ └── models.py
+│ └── journal.py
 │
-├── performance/
-│ ├── metrics.py
-│ └── equity_chart.py
-│
-├── risk/
-│ ├── position_manager.py
-│ ├── trade_monitor.py
-│ └── trade_state.py
-│
-├── services/
-│ └── performance_service.py
+├── watchlist/
+│ └── market_selector.py
 │
 ├── display/
-│ ├── dashboard.py
-│ ├── panels.py
-│ ├── tables.py
-│ └── equity.py
+│ └── dashboard.py
 │
-├── indicators/
-│
-├── strategy/
-│
-└── models/
-
+└── main.py
 
 
 ---
 
-# Current Features
+# Core System Flow
+
+
+Market Data
+
+  ↓
+
+Indicators
+
+  ↓
+
+Scoring Engine
+
+  ↓
+
+Signal Generator
+
+  ↓
+
+Risk Manager
+
+  ↓
+
+Trade Creation
+
+  ↓
+
+Database
+
+  ↓
+
+Portfolio
+
+  ↓
+
+Dashboard
+
+
+---
+
+# Completed Features
 
 ## Market Scanner
 
-- Dynamic watchlist support
-- Symbol scanning
-- Technical indicator analysis
-- Score generation
-- Bull/Bear bias
+Completed.
+
+Features:
+
+- Multiple symbol scanning
+- Indicator generation
+- Scorecard creation
+- BUY / SELL / HOLD classification
 
 
-## Strategy Engine
+---
 
-Current scoring includes:
+## Technical Indicators
 
-- Trend
-- Momentum
-- Volatility
-- Volume
+Completed.
+
+Current indicators:
+
+- SMA 20
+- SMA 50
+- EMA 20
+- EMA 50
+- ADX
+- DI+
+- DI-
+- RSI
+- ATR
+- Bollinger Width
+- Volume metrics
+
+
+---
+
+## Scoring Engine
+
+Completed.
+
+Components:
+
+Trend Score
+
+Momentum Score
+
+Volatility Score
+
+Volume Score
 
 
 Example:
 
 
-AAPL
-Score: 70
-Bias: BUY
-Confidence: 70%
+Trend: 40
+Momentum: 20
+Volatility: 10
+Volume: 20
 
+Total: 90
+Signal: BUY
 
 
 ---
 
 # Risk Management
 
-Implemented:
+Completed.
 
-- Position manager
-- Risk calculations
-- Stop loss handling
-- Take profit handling
-- Trade state tracking
+Current:
+
+- Account risk calculation
+- Position sizing
+- Stop placement
+- Take profit
+- Risk reward calculation
+
+
+---
+
+# Backtesting System
+
+Completed.
+
+Capabilities:
+
+- Historical data loading
+- Strategy execution
+- Trade simulation
+- ATR stop loss
+- ATR take profit
+- Trailing stops
+- Maximum holding period
+- Slippage
+- Commission simulation
+- Equity tracking
+
+
+---
+
+# Backtesting Results
+
+Latest multi-market testing:
+
+## MSFT
+
+
+Profit:
++2907
+
+Trades:
+6
+
+Win Rate:
+50%
+
+Profit Factor:
+2.69
+
+
+---
+
+## AAPL
+
+
+Profit:
++1461
+
+Trades:
+8
+
+Win Rate:
+50%
+
+Profit Factor:
+1.56
+
+
+---
+
+## QQQ
+
+
+Profit:
++791
+
+Trades:
+23
+
+Win Rate:
+43.48%
+
+Profit Factor:
+1.15
+
+
+---
+
+## SPY
+
+Currently filtered:
+
+
+Loss:
+-3320
+
+Profit Factor:
+0.80
+
+
+---
+
+Combined:
+
+
+Markets Tested:
+5
+
+Trades:
+99
+
+Wins:
+40
+
+Combined Profit:
++1838
+
+Win Rate:
+40.4%
+
+
+---
+
+# Market Selection
+
+Completed.
+
+Process:
+
+
+Backtest Results
+
+    ↓
+
+Market Analytics
+
+    ↓
+
+Ranking
+
+    ↓
+
+Market Selector
+
+    ↓
+
+watchlist.txt
+
+
+Current selected watchlist example:
+
+
+MSFT
+QQQ
+AAPL
 
 
 ---
 
 # Database
 
-SQLite database:
+Completed.
 
-
-atlas.db
-
-
+SQLite persistence.
 
 Current tables:
 
+Trades
 
-trades
-
-portfolio
-
-journal
-
-equity_history
-
-
-
-Trades store:
+Stores:
 
 - Symbol
 - Direction
 - Entry
-- Stop Loss
-- Take Profit
+- Stop
+- Target
 - Quantity
 - Risk
 - Reward
 - Confidence
 - Status
-- Exit price
 - Profit/Loss
 
 
----
+Equity history
 
-# Performance System
-
-Tracks:
-
-- Total trades
-- Open trades
-- Closed trades
-- Wins
-- Losses
-- Win rate
-- Net profit
-- Equity
-- Growth
-- Drawdown
-- Expectancy
+Trade journal
 
 
 ---
 
-# Trade Journal
+# Services Layer
 
-Records:
+Created.
 
-- Trade events
-- Signals
-- Scores
-- Confidence
-- Market conditions
-- Outcomes
+Current services:
+
+
+execution_service.py
+
+performance_service.py
+
+portfolio_service.py
+
+scanner_service.py
+
+strategy_service.py
+
+trade_service.py
 
 
 ---
 
-# Running Atlas
+# Current Development Phase
 
-Activate environment:
+## Phase 4: Paper Trading Preparation
+
+Next objectives:
+
+1. Connect market selector to live scanning
+
+2. Create paper execution engine
+
+3. Add trade lifecycle management
+
+4. Add signal explanations
+
+5. Add portfolio risk controls
+
+6. Improve dashboard
+
+---
+
+# Important Development Rule
+
+DO NOT replace random individual files.
+
+Future changes should be:
+
+1. Identify module
+2. Replace complete file
+3. Test
+4. Commit to GitHub
 
 
-.venv\Scripts\activate
+---
 
+# Environment
+
+Windows 11
+
+Python:
+
+3.12.10
+
+Virtual environment:
+
+
+.venv
 
 
 Run:
 
 
+.venv\Scripts\activate
 python main.py
 
 
-
 ---
 
-# Git Backup
+# Git Repository
 
-Check status:
+Repository:
 
-
-git status
-
+https://github.com/Leeroytrades/atlas2.0
 
 
-Save changes:
+Backup:
 
 
 git add .
-
-git commit -m "Atlas update"
-
-git push
-
+git commit -m "Update Atlas"
+git push origin main
 
 
 ---
 
-# Next Development Phase
+# Current Goal
 
-## Atlas 2.2
+Transform Atlas from:
 
-Planned:
+"Backtesting research platform"
 
-- Automatic trade execution
-- Signal → Trade creation pipeline
-- Broker integration layer
-- Backtesting engine
-- AI trade explanations
-- Live market monitoring
-- Alerts
-- Advanced portfolio analytics
+into:
 
+"Paper trading AI trading assistant"
 
----
+Next milestone:
 
-# Developer
-
-Liam Thornton
-
-Atlas AI Trading Assistant
+ATLAS LIVE ENGINE 3.1

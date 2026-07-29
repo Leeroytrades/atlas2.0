@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Assistant 3.0
 
 Core Engine
 
@@ -13,7 +13,7 @@ Controls:
 - Performance
 - Equity tracking
 - Trade monitoring
-- Smart opportunity selection
+- Trade creation
 """
 
 from __future__ import annotations
@@ -46,33 +46,14 @@ class AtlasEngine:
     def __init__(self):
 
 
-        # -------------------------
-        # Database
-        # -------------------------
-
         self.database = Database()
 
-
-
-        # -------------------------
-        # Session
-        # -------------------------
 
         self.session = Session()
 
 
-
-        # -------------------------
-        # Scanner
-        # -------------------------
-
         self.scanner = Scanner()
 
-
-
-        # -------------------------
-        # Repositories
-        # -------------------------
 
         self.trade_repository = TradeRepository(
             self.database
@@ -89,20 +70,10 @@ class AtlasEngine:
         )
 
 
-
-        # -------------------------
-        # Risk
-        # -------------------------
-
         self.position_manager = PositionManager(
             self.trade_repository
         )
 
-
-
-        # -------------------------
-        # Monitoring
-        # -------------------------
 
         self.trade_monitor = TradeMonitor(
             self.trade_repository,
@@ -110,24 +81,18 @@ class AtlasEngine:
         )
 
 
-
-        # -------------------------
-        # Performance
-        # -------------------------
-
         self.performance_service = PerformanceService(
             self.trade_repository
         )
-
 
 
         self.load_portfolio()
 
 
 
-    # =====================================================
+    # ==============================
     # MARKET SCAN
-    # =====================================================
+    # ==============================
 
     def scan_market(self):
 
@@ -137,15 +102,14 @@ class AtlasEngine:
 
 
 
-    # =====================================================
-    # SMART OPPORTUNITY FINDER
-    # =====================================================
+    # ==============================
+    # FIND BEST OPPORTUNITY
+    # ==============================
 
     def find_opportunity(
         self,
         scans
     ):
-
 
         opportunities = []
 
@@ -156,7 +120,6 @@ class AtlasEngine:
             if score.bias != "BUY":
 
                 continue
-
 
 
             if self.position_manager.has_open_position(
@@ -170,15 +133,14 @@ class AtlasEngine:
                 continue
 
 
-
-            opportunities.append(score)
-
+            opportunities.append(
+                score
+            )
 
 
         if not opportunities:
 
             return None
-
 
 
         opportunities.sort(
@@ -187,26 +149,21 @@ class AtlasEngine:
         )
 
 
-
         opportunity = opportunities[0]
 
-
-
-        print()
 
         print(
             f"Trade opportunity found: {opportunity.symbol}"
         )
 
 
-
         return opportunity
 
 
 
-    # =====================================================
+    # ==============================
     # ANALYSE SYMBOL
-    # =====================================================
+    # ==============================
 
     def analyse(
         self,
@@ -235,7 +192,6 @@ class AtlasEngine:
             None
 
         )
-
 
 
         if score is None:
@@ -273,7 +229,6 @@ class AtlasEngine:
                 )
 
 
-
                 if trade:
 
 
@@ -297,9 +252,9 @@ class AtlasEngine:
 
 
 
-    # =====================================================
+    # ==============================
     # SEARCH AND TRADE
-    # =====================================================
+    # ==============================
 
     def search_and_trade(
         self,
@@ -310,7 +265,6 @@ class AtlasEngine:
         opportunity = self.find_opportunity(
             scans
         )
-
 
 
         if opportunity is None:
@@ -332,9 +286,9 @@ class AtlasEngine:
 
 
 
-    # =====================================================
+    # ==============================
     # PORTFOLIO
-    # =====================================================
+    # ==============================
 
     def portfolio(self):
 
@@ -348,9 +302,7 @@ class AtlasEngine:
         trades = self.trade_repository.open_trades()
 
 
-
         for trade in trades:
-
 
             self.session.portfolio.add_trade(
                 trade
@@ -358,15 +310,14 @@ class AtlasEngine:
 
 
 
-    # =====================================================
+    # ==============================
     # PERFORMANCE
-    # =====================================================
+    # ==============================
 
     def performance(self):
 
 
         metrics = self.performance_service.summary()
-
 
 
         equity = metrics.get(
@@ -378,13 +329,10 @@ class AtlasEngine:
         )
 
 
-
         latest = self.equity_history_repository.latest()
 
 
-
         last_equity = None
-
 
 
         if latest:
@@ -401,14 +349,13 @@ class AtlasEngine:
             )
 
 
-
         return metrics
 
 
 
-    # =====================================================
+    # ==============================
     # EQUITY HISTORY
-    # =====================================================
+    # ==============================
 
     def equity_history(self):
 
@@ -416,9 +363,9 @@ class AtlasEngine:
 
 
 
-    # =====================================================
+    # ==============================
     # TRADE MONITOR
-    # =====================================================
+    # ==============================
 
     def monitor_trades(self):
 
@@ -426,9 +373,7 @@ class AtlasEngine:
         trades = self.trade_repository.open_trades()
 
 
-
         results = []
-
 
 
         for trade in trades:
@@ -436,14 +381,12 @@ class AtlasEngine:
 
             try:
 
-
                 current_price = self.scanner.market.get_price(
                     trade.symbol
                 )
 
 
             except Exception:
-
 
                 current_price = trade.entry
 
@@ -458,7 +401,6 @@ class AtlasEngine:
             )
 
 
-
             results.append(
 
                 {
@@ -467,21 +409,20 @@ class AtlasEngine:
 
                     "state": state.value,
 
-                    "price": current_price,
+                    "price": current_price
 
                 }
 
             )
 
 
-
         return results
 
 
 
-    # =====================================================
+    # ==============================
     # CLOSE
-    # =====================================================
+    # ==============================
 
     def close(self):
 
