@@ -1,12 +1,9 @@
 """
-Atlas AI Trading Platform
+Atlas AI Trading Assistant 2.2
 
-Equity Repository
+Equity History Repository
 
-Handles:
-- Saving equity history
-- Loading equity history
-- Latest equity value
+Stores account equity snapshots.
 """
 
 from __future__ import annotations
@@ -14,8 +11,7 @@ from __future__ import annotations
 from datetime import datetime
 
 
-
-class EquityRepository:
+class EquityHistoryRepository:
 
 
     def __init__(
@@ -30,8 +26,35 @@ class EquityRepository:
     def save(
         self,
         equity: float,
-        trade_id: int | None = None
+        trade_id=None
     ):
+
+        """
+        Save equity snapshot only
+        when equity changes.
+        """
+
+        latest = self.database.fetch_all(
+
+            """
+            SELECT equity
+            FROM equity_history
+            ORDER BY id DESC
+            LIMIT 1
+            """
+
+        )
+
+
+        if latest:
+
+            last_equity = float(
+                latest[0]["equity"]
+            )
+
+            if last_equity == equity:
+                return
+
 
 
         query = """
@@ -39,13 +62,9 @@ class EquityRepository:
         INSERT INTO equity_history
 
         (
-
             trade_id,
-
             equity,
-
             timestamp
-
         )
 
         VALUES (?,?,?)
@@ -53,7 +72,7 @@ class EquityRepository:
         """
 
 
-        return self.database.execute(
+        self.database.execute(
 
             query,
 
@@ -63,7 +82,7 @@ class EquityRepository:
 
                 equity,
 
-                datetime.now().isoformat(),
+                datetime.now().isoformat()
 
             )
 
@@ -71,23 +90,19 @@ class EquityRepository:
 
 
 
-    def history(self):
-
-
-        query = """
-
-        SELECT *
-
-        FROM equity_history
-
-        ORDER BY id ASC
-
-        """
-
+    def all(self):
 
         return self.database.fetch_all(
 
-            query
+            """
+
+            SELECT *
+
+            FROM equity_history
+
+            ORDER BY id ASC
+
+            """
 
         )
 
@@ -95,38 +110,23 @@ class EquityRepository:
 
     def latest(self):
 
+        rows = self.database.fetch_all(
 
-        query = """
+            """
 
-        SELECT *
+            SELECT *
 
-        FROM equity_history
+            FROM equity_history
 
-        ORDER BY id DESC
+            ORDER BY id DESC
 
-        LIMIT 1
+            LIMIT 1
 
-        """
-
-
-        return self.database.fetch_one(
-
-            query
+            """
 
         )
 
+        if rows:
+            return rows[0]
 
-
-    def values(self):
-
-
-        rows = self.history()
-
-
-        return [
-
-            row["equity"]
-
-            for row in rows
-
-        ]
+        return None
