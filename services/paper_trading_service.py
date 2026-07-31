@@ -1,28 +1,26 @@
 """
-Atlas AI Trading Assistant 3.0
+Atlas AI Trading Platform 3.0
 
 Paper Trading Service
 
-Coordinates the complete paper trading workflow.
+Coordinates the trading workflow.
 
-Responsibilities
+Responsibilities:
 
 - Select opportunities
 - Validate positions
 - Create trades
-- Save trades
+- Submit trades through broker
 - Update portfolio
 
-This service intentionally contains orchestration only.
-
-Trade creation belongs to TradeService.
-Risk validation belongs to PositionManager.
-Persistence belongs to TradeRepository.
+Persistence and execution are handled by the broker layer.
 """
 
 from __future__ import annotations
 
+
 from services.trade_service import TradeService
+
 
 
 class PaperTradingService:
@@ -30,14 +28,15 @@ class PaperTradingService:
     Coordinates paper trade execution.
     """
 
+
     def __init__(
         self,
-        trade_repository,
+        broker,
         position_manager,
         portfolio,
     ):
 
-        self.trade_repository = trade_repository
+        self.broker = broker
 
         self.position_manager = position_manager
 
@@ -45,20 +44,16 @@ class PaperTradingService:
 
         self.trade_service = TradeService()
 
+
+
     # ---------------------------------------------------------
-    # Public
+    # Find and execute best opportunity
     # ---------------------------------------------------------
 
     def trade_best(
         self,
         scans,
     ):
-        """
-        Execute the highest-confidence BUY opportunity.
-
-        Returns:
-            Trade | None
-        """
 
         candidates = [
 
@@ -70,9 +65,12 @@ class PaperTradingService:
 
         ]
 
+
         if not candidates:
 
             return None
+
+
 
         candidates.sort(
 
@@ -82,18 +80,28 @@ class PaperTradingService:
 
         )
 
+
+
         for scan in candidates:
 
-            trade = self.execute_scan(scan)
+
+            trade = self.execute_scan(
+                scan
+            )
+
 
             if trade:
 
                 return trade
 
+
+
         return None
 
+
+
     # ---------------------------------------------------------
-    # Execute Scan
+    # Execute Trade
     # ---------------------------------------------------------
 
     def execute_scan(
@@ -101,11 +109,16 @@ class PaperTradingService:
         scan,
     ):
 
+
         if self.position_manager.has_open_position(
+
             scan.symbol
+
         ):
 
             return None
+
+
 
         trade = self.trade_service.create(
 
@@ -119,9 +132,13 @@ class PaperTradingService:
 
         )
 
+
+
         if trade is None:
 
             return None
+
+
 
         if not self.position_manager.can_open_position(
 
@@ -133,16 +150,25 @@ class PaperTradingService:
 
             return None
 
-        self.trade_repository.save(
+
+
+        # -----------------------------
+        # Send order through broker
+        # -----------------------------
+
+        executed_trade = self.broker.submit_order(
             trade
         )
+
 
         self.portfolio.add_trade(
-            trade
+            executed_trade
         )
+
 
         print(
-            f"Paper trade opened: {trade.symbol}"
+            f"Paper trade opened: {executed_trade.symbol}"
         )
 
-        return trade
+
+        return executed_trade

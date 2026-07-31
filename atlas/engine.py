@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 3.0
+Atlas AI Trading Platform 3.0
 
 Application Engine
 
@@ -8,6 +8,7 @@ Coordinates:
 - Session
 - Scanner Service
 - Paper Trading
+- Broker Layer
 - Execution
 - Performance
 - Portfolio
@@ -30,6 +31,9 @@ from atlas.session import Session
 from atlas.scanner import Scanner
 
 
+from brokers.factory import create_broker
+
+
 from execution.manager import ExecutionManager
 
 
@@ -43,19 +47,25 @@ from services.performance_service import PerformanceService
 from services.portfolio_service import PortfolioService
 
 
+try:
+
+    from core.config.settings import BROKER_MODE
+
+except ImportError:
+
+    BROKER_MODE = "PAPER"
+
+
 
 class AtlasEngine:
-    """
-    Main application coordinator.
-    """
 
 
     def __init__(self):
 
 
-        # ==============================
-        # DATABASE
-        # ==============================
+        # -----------------------------
+        # Database
+        # -----------------------------
 
         self.database = Database()
 
@@ -75,28 +85,28 @@ class AtlasEngine:
         )
 
 
-        # ==============================
-        # SESSION
-        # ==============================
+        # -----------------------------
+        # Session
+        # -----------------------------
 
         self.session = Session()
 
 
 
-        # ==============================
-        # MARKET
-        # ==============================
+        # -----------------------------
+        # Market + Scanner
+        # -----------------------------
 
         self.market = MarketData()
 
 
-
-        # ==============================
-        # CORE COMPONENTS
-        # ==============================
-
         self.scanner = Scanner()
 
+
+
+        # -----------------------------
+        # Risk + Execution
+        # -----------------------------
 
         self.position_manager = PositionManager(
             self.trades
@@ -109,9 +119,23 @@ class AtlasEngine:
 
 
 
-        # ==============================
-        # SERVICES
-        # ==============================
+        # -----------------------------
+        # Broker
+        # -----------------------------
+
+        self.broker = create_broker(
+
+            BROKER_MODE,
+
+            self.trades,
+
+        )
+
+
+
+        # -----------------------------
+        # Services
+        # -----------------------------
 
         self.scanner_service = ScannerService(
 
@@ -122,15 +146,17 @@ class AtlasEngine:
         )
 
 
+
         self.paper_trading = PaperTradingService(
 
-            self.trades,
+            self.broker,
 
             self.position_manager,
 
             self.session.portfolio,
 
         )
+
 
 
         self.execution_service = ExecutionService(
@@ -144,11 +170,13 @@ class AtlasEngine:
         )
 
 
+
         self.performance_service = PerformanceService(
 
-            self.trades,
+            self.trades
 
         )
+
 
 
         self.portfolio_service = PortfolioService(
@@ -165,7 +193,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # SCANNING
+    # SCAN
     # ==================================================
 
     def scan_market(self):
@@ -175,7 +203,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # PAPER TRADING
+    # TRADE
     # ==================================================
 
     def search_and_trade(
@@ -186,16 +214,6 @@ class AtlasEngine:
         return self.paper_trading.trade_best(
             scans
         )
-
-
-
-    # ==================================================
-    # EXECUTION / MONITORING
-    # ==================================================
-
-    def monitor_trades(self):
-
-        return self.execution_service.monitor()
 
 
 
@@ -223,6 +241,16 @@ class AtlasEngine:
 
 
     # ==================================================
+    # MONITOR
+    # ==================================================
+
+    def monitor_trades(self):
+
+        return self.execution_service.monitor()
+
+
+
+    # ==================================================
     # PERFORMANCE
     # ==================================================
 
@@ -235,7 +263,7 @@ class AtlasEngine:
 
             "equity",
 
-            self.session.portfolio.account_balance,
+            self.session.portfolio.account_balance
 
         )
 
@@ -243,7 +271,16 @@ class AtlasEngine:
         latest = self.equity_history_repository.latest()
 
 
-        if latest is None or latest["equity"] != equity:
+        last_equity = None
+
+
+        if latest:
+
+            last_equity = latest["equity"]
+
+
+
+        if last_equity != equity:
 
             self.equity_history_repository.save(
                 equity
