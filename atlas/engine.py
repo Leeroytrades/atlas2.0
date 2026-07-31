@@ -7,12 +7,13 @@ Coordinates:
 
 - Session
 - Scanner
+- Paper Trading
 - Broker
 - Execution
-- Monitoring
 - Performance
 - Portfolio
 - Database
+- Backtesting
 """
 
 from __future__ import annotations
@@ -42,16 +43,19 @@ from services.paper_trading_service import PaperTradingService
 from services.execution_service import ExecutionService
 from services.performance_service import PerformanceService
 from services.portfolio_service import PortfolioService
-from services.monitoring_service import MonitoringService
+from services.backtesting_service import BacktestingService
+
 
 
 try:
 
-    from core.config.settings import BROKER_MODE
+    from core.config import BROKER_MODE
 
 except ImportError:
 
     BROKER_MODE = "PAPER"
+
+
 
 
 
@@ -69,17 +73,23 @@ class AtlasEngine:
 
 
         self.trades = TradeRepository(
+
             self.database
+
         )
 
 
         self.equity_history_repository = EquityHistoryRepository(
+
             self.database
+
         )
 
 
         self.journal = JournalRepository(
+
             self.database
+
         )
 
 
@@ -108,7 +118,9 @@ class AtlasEngine:
         # ==================================================
 
         self.position_manager = PositionManager(
+
             self.trades
+
         )
 
 
@@ -178,22 +190,7 @@ class AtlasEngine:
         )
 
 
-
-        # ==================================================
-        # MONITORING
-        # ==================================================
-
-        self.monitoring_service = MonitoringService(
-
-            self.scanner_service,
-
-            self.execution_service,
-
-            self.performance_service,
-
-            self.portfolio_service,
-
-        )
+        self.backtesting_service = BacktestingService()
 
 
 
@@ -212,7 +209,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # TRADE CREATION
+    # PAPER TRADING
     # ==================================================
 
     def search_and_trade(
@@ -221,7 +218,9 @@ class AtlasEngine:
     ):
 
         return self.paper_trading.trade_best(
+
             scans
+
         )
 
 
@@ -244,7 +243,9 @@ class AtlasEngine:
         for trade in trades:
 
             self.session.portfolio.add_trade(
+
                 trade
+
             )
 
 
@@ -256,16 +257,6 @@ class AtlasEngine:
     def monitor_trades(self):
 
         return self.execution_service.monitor()
-
-
-
-    # ==================================================
-    # FULL MONITORING CYCLE
-    # ==================================================
-
-    def run_monitoring_cycle(self):
-
-        return self.monitoring_service.run_cycle()
 
 
 
@@ -287,11 +278,16 @@ class AtlasEngine:
         )
 
 
-        self.equity_history_repository.save(
+        latest = self.equity_history_repository.latest()
 
-            equity
 
-        )
+        if latest is None or latest["equity"] != equity:
+
+            self.equity_history_repository.save(
+
+                equity
+
+            )
 
 
         return metrics
@@ -299,12 +295,45 @@ class AtlasEngine:
 
 
     # ==================================================
-    # EQUITY
+    # EQUITY HISTORY
     # ==================================================
 
     def equity_history(self):
 
         return self.equity_history_repository.all()
+
+
+
+    # ==================================================
+    # BACKTESTING
+    # ==================================================
+
+    def run_backtest(
+        self,
+        symbol: str,
+    ):
+
+        return self.backtesting_service.run(
+
+            symbol
+
+        )
+
+
+
+    def rank_backtests(
+        self,
+        results: dict,
+        count: int = 3,
+    ):
+
+        return self.backtesting_service.rank_markets(
+
+            results,
+
+            count
+
+        )
 
 
 

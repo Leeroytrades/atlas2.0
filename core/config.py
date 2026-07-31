@@ -1,62 +1,126 @@
 """
 Atlas AI Trading Platform
 
-Central configuration.
+Central Configuration
 
-Every configurable value in Atlas should live here.
+Single source of truth for
+application settings.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 
 
-@dataclass(slots=True)
-class AtlasConfig:
-    """Application configuration."""
-
-    # ------------------------------------------------------------------
-    # General
-    # ------------------------------------------------------------------
-
-    APP_NAME: str = "Atlas AI Trading Platform"
-    VERSION: str = "2.1.0"
-
-    # ------------------------------------------------------------------
-    # Database
-    # ------------------------------------------------------------------
-
-    DATABASE_FILE: Path = Path("atlas.db")
-
-    # ------------------------------------------------------------------
-    # Trading
-    # ------------------------------------------------------------------
-
-    ACCOUNT_SIZE: float = 10_000.00
-    RISK_PERCENT: float = 1.0
-
-    # ------------------------------------------------------------------
-    # Market Data
-    # ------------------------------------------------------------------
-
-    DEFAULT_PERIOD: str = "6mo"
-
-    DEFAULT_INTERVAL: str = "1d"
-
-    # ------------------------------------------------------------------
-    # Scanner
-    # ------------------------------------------------------------------
-
-    MAX_SYMBOLS: int = 100
-
-    # ------------------------------------------------------------------
-    # Logging
-    # ------------------------------------------------------------------
-
-    LOG_LEVEL: str = "INFO"
-
-    LOG_FILE: str = "atlas.log"
 
 
-config = AtlasConfig()
+class Config:
+    """
+    Atlas application configuration.
+    """
+
+
+
+    # ==================================================
+    # BROKER
+    # ==================================================
+
+    BROKER_MODE = "PAPER"
+
+
+
+    # ==================================================
+    # ACCOUNT
+    # ==================================================
+
+    ACCOUNT_SIZE = 10000.0
+
+
+    RISK_PERCENT = 1.0
+
+
+
+    # ==================================================
+    # SCHEDULER
+    # ==================================================
+
+    SCHEDULER_INTERVAL = 60
+
+
+
+    # ==================================================
+    # MARKET
+    # ==================================================
+
+    MARKET_ENABLED = True
+
+
+    MARKET_OPEN_HOUR = 9
+
+    MARKET_OPEN_MINUTE = 30
+
+
+    MARKET_CLOSE_HOUR = 16
+
+    MARKET_CLOSE_MINUTE = 0
+
+
+
+    # ==================================================
+    # DATA
+    # ==================================================
+
+    DEFAULT_SYMBOLS = [
+
+        "AAPL",
+
+        "MSFT",
+
+        "NVDA",
+
+        "META",
+
+        "AMZN",
+
+        "GOOG",
+
+        "TSLA",
+
+        "AMD",
+
+        "NFLX",
+
+        "PLTR",
+
+        "SPY",
+
+        "QQQ",
+
+    ]
+
+
+
+    # ==================================================
+    # TIMEFRAMES
+    # ==================================================
+
+    PRIMARY_TIMEFRAME = "5m"
+
+    SECONDARY_TIMEFRAME = "15m"
+
+    HIGHER_TIMEFRAME = "1h"
+
+
+
+    # ==================================================
+    # DATABASE
+    # ==================================================
+
+    DATABASE_FILE = "atlas.db"
+
+
+
+
+
+# Backwards compatibility
+
+BROKER_MODE = Config.BROKER_MODE

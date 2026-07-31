@@ -4,6 +4,13 @@ Atlas AI Trading Platform 3.0
 Execution Service
 
 Monitors broker positions.
+
+Responsibilities:
+
+- Retrieve broker positions
+- Check market prices
+- Monitor stops/targets
+- Trigger alerts
 """
 
 from __future__ import annotations
@@ -18,6 +25,7 @@ class ExecutionService:
         broker,
         trade_repository,
         market_data,
+        alerts=None,
     ):
 
         self.broker = broker
@@ -26,7 +34,13 @@ class ExecutionService:
 
         self.market = market_data
 
+        self.alerts = alerts
 
+
+
+    # ==================================================
+    # MONITOR OPEN TRADES
+    # ==================================================
 
     def monitor(self):
 
@@ -56,10 +70,25 @@ class ExecutionService:
 
 
 
-        return self.broker.monitor_open_trades(
+        closed = self.broker.monitor_open_trades(
 
             open_trades,
 
             prices
 
         )
+
+
+
+        if closed and self.alerts:
+
+
+            for trade in closed:
+
+                self.alerts.trade_closed(
+                    trade
+                )
+
+
+
+        return closed

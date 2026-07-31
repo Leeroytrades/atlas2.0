@@ -1,34 +1,32 @@
 """
-Atlas AI Trading Platform 3.1
+Atlas AI Trading Platform 3.0
 
 Application Entry Point
-
-Modes:
-
-Normal:
-    python main.py
-
-Live monitoring:
-    python main.py --live
 """
 
 from __future__ import annotations
 
 
-import sys
-
-
 from atlas.engine import AtlasEngine
+
 
 from core.scheduler import Scheduler
 
+from core.market_hours import MarketHours
+
+from core.config import Config
+
+
 from display.dashboard import show_dashboard
+
+
 
 
 
 def run_once(
     atlas: AtlasEngine,
 ):
+
 
     print()
 
@@ -45,8 +43,11 @@ def run_once(
 
 
     trade = atlas.search_and_trade(
+
         scans
+
     )
+
 
 
     if trade:
@@ -54,7 +55,9 @@ def run_once(
         print()
 
         print(
+
             f"Paper trade opened: {trade.symbol}"
+
         )
 
 
@@ -81,63 +84,13 @@ def run_once(
 
             "equity",
 
-            10000.0
+            Config.ACCOUNT_SIZE
 
         ),
 
     )
 
 
-
-def run_live(
-    atlas: AtlasEngine,
-):
-
-    print()
-
-    print(
-        "ATLAS LIVE MODE STARTED"
-    )
-
-    print(
-        "Monitoring markets..."
-    )
-
-    print()
-
-
-
-    scheduler = Scheduler(
-
-        interval=300
-
-    )
-
-
-    try:
-
-        scheduler.start(
-
-            lambda:
-
-            run_once(
-                atlas
-            )
-
-        )
-
-
-    except KeyboardInterrupt:
-
-
-        print()
-
-        print(
-            "Stopping Atlas..."
-        )
-
-
-        scheduler.stop()
 
 
 
@@ -148,29 +101,58 @@ def main():
 
 
 
+    market_hours = MarketHours()
+
+
+
+    scheduler = Scheduler(
+
+        interval=Config.SCHEDULER_INTERVAL,
+
+        market_hours=market_hours,
+
+    )
+
+
+
     try:
 
 
-        if "--live" in sys.argv:
+        scheduler.start(
+
+            lambda:
+
+                run_once(
+
+                    atlas
+
+                )
+
+        )
 
 
-            run_live(
-                atlas
-            )
+    except KeyboardInterrupt:
 
 
-        else:
+        print()
 
+        print(
 
-            run_once(
-                atlas
-            )
+            "Stopping Atlas..."
+
+        )
+
 
 
     finally:
 
 
+        scheduler.stop()
+
+
         atlas.close()
+
+
 
 
 

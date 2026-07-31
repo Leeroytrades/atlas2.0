@@ -1,20 +1,23 @@
 """
-Atlas AI Trading Assistant 2.4
+Atlas AI Trading Platform 3.0
 
 Position Manager
 
-Responsible for:
+Controls:
 
-- Open position tracking
-- Duplicate prevention
 - Position limits
-- Risk limits
-- Portfolio protection
+- Risk validation
+- Exposure checks
+- Account risk
 """
 
 from __future__ import annotations
 
-from models.trade import Trade
+
+from core.config import Config
+
+
+
 
 
 class PositionManager:
@@ -23,151 +26,77 @@ class PositionManager:
     def __init__(
         self,
         trade_repository,
-        max_positions: int = 5,
-        max_risk_percent: float = 5.0,
-        account_size: float = 10000.0,
     ):
 
         self.trades = trade_repository
 
-        self.max_positions = max_positions
-
-        self.max_risk_percent = max_risk_percent
-
-        self.account_size = account_size
 
 
-
-    # =====================================================
+    # ==================================================
     # OPEN POSITIONS
-    # =====================================================
+    # ==================================================
 
-    def open_positions(self) -> list[Trade]:
-        """
-        Return all active trades.
-        """
+    def open_positions(self):
 
         return self.trades.open_trades()
 
 
 
-    # =====================================================
-    # POSITION CHECKS
-    # =====================================================
+    # ==================================================
+    # CHECK EXISTING POSITION
+    # ==================================================
 
     def has_open_position(
         self,
         symbol: str,
-    ) -> bool:
-        """
-        Check if symbol already exists.
-        """
+    ):
 
-        return any(
 
-            trade.symbol == symbol
-
-            for trade in self.open_positions()
-
-        )
+        positions = self.open_positions()
 
 
 
-    def open_position_count(
-        self,
-    ) -> int:
-        """
-        Number of active positions.
-        """
+        for trade in positions:
 
-        return len(
+            if trade.symbol == symbol:
 
-            self.open_positions()
-
-        )
+                return True
 
 
 
-    def total_risk(
-        self,
-    ) -> float:
-        """
-        Current open trade risk.
-        """
-
-        return sum(
-
-            getattr(
-
-                trade,
-
-                "risk_amount",
-
-                0
-
-            )
-
-            for trade in self.open_positions()
-
-        )
+        return False
 
 
 
-    # =====================================================
-    # CAN OPEN POSITION
-    # =====================================================
+    # ==================================================
+    # RISK LIMIT CHECK
+    # ==================================================
 
     def can_open_position(
         self,
         symbol: str,
-        additional_risk: float = 0.0,
-    ) -> bool:
-        """
-        Full risk validation.
-        """
-
-
-        # Duplicate symbol check
-
-        if self.has_open_position(symbol):
-
-            return False
+        risk_amount: float,
+    ):
 
 
 
-        # Maximum positions
+        max_risk = (
 
-        if self.open_position_count() >= self.max_positions:
-
-            return False
-
-
-
-        # Maximum account risk
-
-        max_risk_amount = (
-
-            self.account_size
+            Config.ACCOUNT_SIZE
 
             *
 
-            (self.max_risk_percent / 100)
+            Config.RISK_PERCENT
+
+            /
+
+            100
 
         )
 
 
-        projected_risk = (
 
-            self.total_risk()
-
-            +
-
-            additional_risk
-
-        )
-
-
-        if projected_risk > max_risk_amount:
+        if risk_amount > max_risk:
 
             return False
 
@@ -177,88 +106,85 @@ class PositionManager:
 
 
 
-    # =====================================================
-    # INFORMATION
-    # =====================================================
+    # ==================================================
+    # CURRENT EXPOSURE
+    # ==================================================
 
-    def symbols_open(
-        self,
-    ) -> list[str]:
-        """
-        Return active symbols.
-        """
+    def exposure(self):
 
-        return [
 
-            trade.symbol
-
-            for trade in self.open_positions()
-
-        ]
+        total = 0
 
 
 
-    def exposure(
-        self,
-    ) -> float:
-        """
-        Total capital exposed.
-        """
+        for trade in self.open_positions():
 
-        return sum(
 
-            trade.entry * trade.quantity
+            total += (
 
-            for trade in self.open_positions()
+                trade.entry
+
+                *
+
+                trade.quantity
+
+            )
+
+
+
+        return total
+
+
+
+    # ==================================================
+    # RISK USED
+    # ==================================================
+
+    def risk_used(self):
+
+
+        total = 0
+
+
+
+        for trade in self.open_positions():
+
+
+            total += trade.risk_amount
+
+
+
+        return total
+
+
+
+    # ==================================================
+    # AVAILABLE RISK
+    # ==================================================
+
+    def available_risk(self):
+
+
+        allowed = (
+
+            Config.ACCOUNT_SIZE
+
+            *
+
+            Config.RISK_PERCENT
+
+            /
+
+            100
 
         )
 
 
 
-    def summary(
-        self,
-    ) -> dict:
-        """
-        Position overview.
-        """
+        return max(
 
-        return {
+            allowed - self.risk_used(),
 
-            "positions":
+            0
 
-                self.open_position_count(),
-
-
-            "max_positions":
-
-                self.max_positions,
-
-
-            "symbols":
-
-                self.symbols_open(),
-
-
-            "exposure":
-
-                round(
-
-                    self.exposure(),
-
-                    2
-
-                ),
-
-
-            "risk":
-
-                round(
-
-                    self.total_risk(),
-
-                    2
-
-                ),
-
-
-        }
+        )
