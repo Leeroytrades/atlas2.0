@@ -1,19 +1,17 @@
 """
 Atlas AI Trading Assistant 3.0
 
-Core Engine
+Application Engine
 
-Controls:
+Coordinates:
 
-- Database
 - Session
-- Scanner
-- Portfolio
-- Risk
+- Scanner Service
+- Paper Trading
+- Execution
 - Performance
-- Equity tracking
-- Trade monitoring
-- Trade creation
+- Portfolio
+- Database
 """
 
 from __future__ import annotations
@@ -25,18 +23,21 @@ from database.equity_history import EquityHistoryRepository
 from database.journal import JournalRepository
 
 
-from services.performance_service import PerformanceService
-
-
 from atlas.session import Session
 from atlas.scanner import Scanner
 
 
+from execution.manager import ExecutionManager
+
+
 from risk.position_manager import PositionManager
-from risk.trade_monitor import TradeMonitor
 
 
-from risk.risk_manager import create_trade
+from services.scanner_service import ScannerService
+from services.paper_trading_service import PaperTradingService
+from services.execution_service import ExecutionService
+from services.performance_service import PerformanceService
+from services.portfolio_service import PortfolioService
 
 
 
@@ -46,21 +47,19 @@ class AtlasEngine:
     def __init__(self):
 
 
+        # -----------------------------
+        # Database
+        # -----------------------------
+
         self.database = Database()
 
 
-        self.session = Session()
-
-
-        self.scanner = Scanner()
-
-
-        self.trade_repository = TradeRepository(
+        self.trades = TradeRepository(
             self.database
         )
 
 
-        self.equity_history_repository = EquityHistoryRepository(
+        self.equity_history = EquityHistoryRepository(
             self.database
         )
 
@@ -70,19 +69,79 @@ class AtlasEngine:
         )
 
 
+        # -----------------------------
+        # Session
+        # -----------------------------
+
+        self.session = Session()
+
+
+
+        # -----------------------------
+        # Core components
+        # -----------------------------
+
+        self.scanner = Scanner()
+
+
         self.position_manager = PositionManager(
-            self.trade_repository
+            self.trades
         )
 
 
-        self.trade_monitor = TradeMonitor(
-            self.trade_repository,
-            self.journal
+        self.execution_manager = ExecutionManager(
+            self.trades
+        )
+
+
+        # -----------------------------
+        # Services
+        # -----------------------------
+
+        self.scanner_service = ScannerService(
+
+            self.session,
+
+            self.scanner
+
+        )
+
+
+        self.paper_trading = PaperTradingService(
+
+            self.trades,
+
+            self.position_manager,
+
+            self.session.portfolio,
+
+        )
+
+
+        self.execution_service = ExecutionService(
+
+            self.execution_manager,
+
+            self.trades,
+
+            self.scanner.market,
+
         )
 
 
         self.performance_service = PerformanceService(
-            self.trade_repository
+
+            self.trades
+
+        )
+
+
+        self.portfolio_service = PortfolioService(
+
+            self.session.portfolio,
+
+            self.trades,
+
         )
 
 
@@ -90,205 +149,54 @@ class AtlasEngine:
 
 
 
-    # ==============================
-    # MARKET SCAN
-    # ==============================
+    # ==================================================
+    # SCANNING
+    # ==================================================
 
     def scan_market(self):
 
-        return self.scanner.scan(
-            self.session.watchlist.symbols
-        )
+        return self.scanner_service.scan()
 
 
 
-    # ==============================
-    # FIND BEST OPPORTUNITY
-    # ==============================
-
-    def find_opportunity(
-        self,
-        scans
-    ):
-
-        opportunities = []
-
-
-        for score in scans:
-
-
-            if score.bias != "BUY":
-
-                continue
-
-
-            if self.position_manager.has_open_position(
-                score.symbol
-            ):
-
-                print(
-                    f"{score.symbol}: Existing position - skipped"
-                )
-
-                continue
-
-
-            opportunities.append(
-                score
-            )
-
-
-        if not opportunities:
-
-            return None
-
-
-        opportunities.sort(
-            key=lambda x: x.confidence,
-            reverse=True
-        )
-
-
-        opportunity = opportunities[0]
-
-
-        print(
-            f"Trade opportunity found: {opportunity.symbol}"
-        )
-
-
-        return opportunity
-
-
-
-    # ==============================
-    # ANALYSE SYMBOL
-    # ==============================
-
-    def analyse(
-        self,
-        symbol,
-        scans=None
-    ):
-
-
-        if scans is None:
-
-            scans = self.scan_market()
-
-
-
-        score = next(
-
-            (
-                item
-
-                for item in scans
-
-                if item.symbol == symbol
-
-            ),
-
-            None
-
-        )
-
-
-        if score is None:
-
-            return None, None
-
-
-
-        trade = None
-
-
-
-        if score.bias == "BUY":
-
-
-            if not self.position_manager.has_open_position(
-                symbol
-            ):
-
-
-                trade = create_trade(
-
-                    symbol,
-
-                    score.dataframe,
-
-                    self.session.portfolio.account_balance,
-
-                    1.0,
-
-                    "LONG",
-
-                    score.confidence / 100
-
-                )
-
-
-                if trade:
-
-
-                    self.trade_repository.save(
-                        trade
-                    )
-
-
-                    self.session.portfolio.add_trade(
-                        trade
-                    )
-
-
-                    print(
-                        f"Trade created: {symbol}"
-                    )
-
-
-
-        return score, trade
-
-
-
-    # ==============================
-    # SEARCH AND TRADE
-    # ==============================
+    # ==================================================
+    # PAPER TRADING
+    # ==================================================
 
     def search_and_trade(
         self,
-        scans
+        scans,
     ):
 
-
-        opportunity = self.find_opportunity(
+        return self.paper_trading.trade_best(
             scans
         )
 
 
-        if opportunity is None:
 
-            return None
+    # ==================================================
+    # EXECUTION
+    # ==================================================
 
+    def monitor_trades(self):
 
-
-        _, trade = self.analyse(
-
-            opportunity.symbol,
-
-            scans
-
-        )
-
-
-        return trade
+        return self.execution_service.monitor()
 
 
 
-    # ==============================
+    # ==================================================
+    # PERFORMANCE
+    # ==================================================
+
+    def performance(self):
+
+        return self.performance_service.summary()
+
+
+
+    # ==================================================
     # PORTFOLIO
-    # ==============================
+    # ==================================================
 
     def portfolio(self):
 
@@ -296,10 +204,23 @@ class AtlasEngine:
 
 
 
+    # ==================================================
+    # EQUITY
+    # ==================================================
+
+    def equity_history_data(self):
+
+        return self.equity_history.all()
+
+
+
+    # ==================================================
+    # LOAD EXISTING TRADES
+    # ==================================================
+
     def load_portfolio(self):
 
-
-        trades = self.trade_repository.open_trades()
+        trades = self.trades.open_trades()
 
 
         for trade in trades:
@@ -310,119 +231,9 @@ class AtlasEngine:
 
 
 
-    # ==============================
-    # PERFORMANCE
-    # ==============================
-
-    def performance(self):
-
-
-        metrics = self.performance_service.summary()
-
-
-        equity = metrics.get(
-
-            "equity",
-
-            self.session.portfolio.account_balance
-
-        )
-
-
-        latest = self.equity_history_repository.latest()
-
-
-        last_equity = None
-
-
-        if latest:
-
-            last_equity = latest["equity"]
-
-
-
-        if last_equity != equity:
-
-
-            self.equity_history_repository.save(
-                equity
-            )
-
-
-        return metrics
-
-
-
-    # ==============================
-    # EQUITY HISTORY
-    # ==============================
-
-    def equity_history(self):
-
-        return self.equity_history_repository.all()
-
-
-
-    # ==============================
-    # TRADE MONITOR
-    # ==============================
-
-    def monitor_trades(self):
-
-
-        trades = self.trade_repository.open_trades()
-
-
-        results = []
-
-
-        for trade in trades:
-
-
-            try:
-
-                current_price = self.scanner.market.get_price(
-                    trade.symbol
-                )
-
-
-            except Exception:
-
-                current_price = trade.entry
-
-
-
-            state = self.trade_monitor.check_trade(
-
-                trade,
-
-                current_price
-
-            )
-
-
-            results.append(
-
-                {
-
-                    "symbol": trade.symbol,
-
-                    "state": state.value,
-
-                    "price": current_price
-
-                }
-
-            )
-
-
-        return results
-
-
-
-    # ==============================
+    # ==================================================
     # CLOSE
-    # ==============================
+    # ==================================================
 
     def close(self):
 

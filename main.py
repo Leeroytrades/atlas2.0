@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Assistant 3.0
 
 Application Entry Point
 """
@@ -15,15 +15,13 @@ from display.dashboard import show_dashboard
 
 def main():
 
+
     atlas = AtlasEngine()
 
 
     print()
-
     print("Scanning Market...")
-
     print()
-
 
 
     scans = atlas.scan_market()
@@ -31,11 +29,8 @@ def main():
 
 
     trade = atlas.search_and_trade(
-
         scans
-
     )
-
 
 
     if trade:
@@ -43,9 +38,7 @@ def main():
         print()
 
         print(
-
-            f"Trade created: {trade.symbol}"
-
+            f"Paper trade opened: {trade.symbol}"
         )
 
 
@@ -58,16 +51,6 @@ def main():
 
 
 
-    current_equity = metrics.get(
-
-        "equity",
-
-        10000.00
-
-    )
-
-
-
     show_dashboard(
 
         scans=scans,
@@ -76,9 +59,12 @@ def main():
 
         metrics=metrics,
 
-        equity_history=atlas.equity_history(),
+        equity_history=[],
 
-        current_equity=current_equity,
+        current_equity=metrics.get(
+            "equity",
+            10000.0
+        ),
 
     )
 
