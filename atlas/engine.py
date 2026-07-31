@@ -34,9 +34,6 @@ from atlas.scanner import Scanner
 from brokers.factory import create_broker
 
 
-from execution.manager import ExecutionManager
-
-
 from risk.position_manager import PositionManager
 
 
@@ -45,6 +42,7 @@ from services.paper_trading_service import PaperTradingService
 from services.execution_service import ExecutionService
 from services.performance_service import PerformanceService
 from services.portfolio_service import PortfolioService
+
 
 
 try:
@@ -57,15 +55,17 @@ except ImportError:
 
 
 
+
+
 class AtlasEngine:
 
 
     def __init__(self):
 
 
-        # -----------------------------
-        # Database
-        # -----------------------------
+        # ==================================================
+        # DATABASE
+        # ==================================================
 
         self.database = Database()
 
@@ -85,17 +85,18 @@ class AtlasEngine:
         )
 
 
-        # -----------------------------
-        # Session
-        # -----------------------------
+
+        # ==================================================
+        # SESSION
+        # ==================================================
 
         self.session = Session()
 
 
 
-        # -----------------------------
-        # Market + Scanner
-        # -----------------------------
+        # ==================================================
+        # MARKET + SCANNER
+        # ==================================================
 
         self.market = MarketData()
 
@@ -104,24 +105,19 @@ class AtlasEngine:
 
 
 
-        # -----------------------------
-        # Risk + Execution
-        # -----------------------------
+        # ==================================================
+        # RISK
+        # ==================================================
 
         self.position_manager = PositionManager(
             self.trades
         )
 
 
-        self.execution_manager = ExecutionManager(
-            self.trades
-        )
 
-
-
-        # -----------------------------
-        # Broker
-        # -----------------------------
+        # ==================================================
+        # BROKER
+        # ==================================================
 
         self.broker = create_broker(
 
@@ -133,9 +129,9 @@ class AtlasEngine:
 
 
 
-        # -----------------------------
-        # Services
-        # -----------------------------
+        # ==================================================
+        # SERVICES
+        # ==================================================
 
         self.scanner_service = ScannerService(
 
@@ -161,7 +157,7 @@ class AtlasEngine:
 
         self.execution_service = ExecutionService(
 
-            self.execution_manager,
+            self.broker,
 
             self.trades,
 
@@ -188,12 +184,13 @@ class AtlasEngine:
         )
 
 
+
         self.load_portfolio()
 
 
 
     # ==================================================
-    # SCAN
+    # MARKET SCANNING
     # ==================================================
 
     def scan_market(self):
@@ -203,7 +200,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # TRADE
+    # TRADE SEARCH
     # ==================================================
 
     def search_and_trade(
@@ -241,7 +238,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # MONITOR
+    # EXECUTION MONITOR
     # ==================================================
 
     def monitor_trades(self):

@@ -3,30 +3,24 @@ Atlas AI Trading Platform 3.0
 
 Paper Trading Service
 
-Coordinates the trading workflow.
+Coordinates paper trading workflow.
 
 Responsibilities:
 
 - Select opportunities
 - Validate positions
 - Create trades
-- Submit trades through broker
+- Submit through broker
 - Update portfolio
-
-Persistence and execution are handled by the broker layer.
 """
 
 from __future__ import annotations
-
 
 from services.trade_service import TradeService
 
 
 
 class PaperTradingService:
-    """
-    Coordinates paper trade execution.
-    """
 
 
     def __init__(
@@ -47,7 +41,7 @@ class PaperTradingService:
 
 
     # ---------------------------------------------------------
-    # Find and execute best opportunity
+    # Find best trade
     # ---------------------------------------------------------
 
     def trade_best(
@@ -76,10 +70,9 @@ class PaperTradingService:
 
             key=lambda x: x.confidence,
 
-            reverse=True,
+            reverse=True
 
         )
-
 
 
         for scan in candidates:
@@ -101,7 +94,7 @@ class PaperTradingService:
 
 
     # ---------------------------------------------------------
-    # Execute Trade
+    # Execute trade
     # ---------------------------------------------------------
 
     def execute_scan(
@@ -152,23 +145,23 @@ class PaperTradingService:
 
 
 
-        # -----------------------------
         # Send order through broker
-        # -----------------------------
 
-        executed_trade = self.broker.submit_order(
+        trade = self.broker.submit_order(
             trade
         )
 
 
+
         self.portfolio.add_trade(
-            executed_trade
+            trade
         )
+
 
 
         print(
-            f"Paper trade opened: {executed_trade.symbol}"
+            f"Paper trade opened: {trade.symbol}"
         )
 
 
-        return executed_trade
+        return trade
