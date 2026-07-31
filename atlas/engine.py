@@ -23,6 +23,9 @@ from database.equity_history import EquityHistoryRepository
 from database.journal import JournalRepository
 
 
+from data.market_data import MarketData
+
+
 from atlas.session import Session
 from atlas.scanner import Scanner
 
@@ -42,14 +45,17 @@ from services.portfolio_service import PortfolioService
 
 
 class AtlasEngine:
+    """
+    Main application coordinator.
+    """
 
 
     def __init__(self):
 
 
-        # -----------------------------
-        # Database
-        # -----------------------------
+        # ==============================
+        # DATABASE
+        # ==============================
 
         self.database = Database()
 
@@ -59,7 +65,7 @@ class AtlasEngine:
         )
 
 
-        self.equity_history = EquityHistoryRepository(
+        self.equity_history_repository = EquityHistoryRepository(
             self.database
         )
 
@@ -69,17 +75,25 @@ class AtlasEngine:
         )
 
 
-        # -----------------------------
-        # Session
-        # -----------------------------
+        # ==============================
+        # SESSION
+        # ==============================
 
         self.session = Session()
 
 
 
-        # -----------------------------
-        # Core components
-        # -----------------------------
+        # ==============================
+        # MARKET
+        # ==============================
+
+        self.market = MarketData()
+
+
+
+        # ==============================
+        # CORE COMPONENTS
+        # ==============================
 
         self.scanner = Scanner()
 
@@ -94,15 +108,16 @@ class AtlasEngine:
         )
 
 
-        # -----------------------------
-        # Services
-        # -----------------------------
+
+        # ==============================
+        # SERVICES
+        # ==============================
 
         self.scanner_service = ScannerService(
 
             self.session,
 
-            self.scanner
+            self.scanner,
 
         )
 
@@ -124,14 +139,14 @@ class AtlasEngine:
 
             self.trades,
 
-            self.scanner.market,
+            self.market,
 
         )
 
 
         self.performance_service = PerformanceService(
 
-            self.trades
+            self.trades,
 
         )
 
@@ -175,22 +190,12 @@ class AtlasEngine:
 
 
     # ==================================================
-    # EXECUTION
+    # EXECUTION / MONITORING
     # ==================================================
 
     def monitor_trades(self):
 
         return self.execution_service.monitor()
-
-
-
-    # ==================================================
-    # PERFORMANCE
-    # ==================================================
-
-    def performance(self):
-
-        return self.performance_service.summary()
 
 
 
@@ -204,20 +209,6 @@ class AtlasEngine:
 
 
 
-    # ==================================================
-    # EQUITY
-    # ==================================================
-
-    def equity_history_data(self):
-
-        return self.equity_history.all()
-
-
-
-    # ==================================================
-    # LOAD EXISTING TRADES
-    # ==================================================
-
     def load_portfolio(self):
 
         trades = self.trades.open_trades()
@@ -228,6 +219,48 @@ class AtlasEngine:
             self.session.portfolio.add_trade(
                 trade
             )
+
+
+
+    # ==================================================
+    # PERFORMANCE
+    # ==================================================
+
+    def performance(self):
+
+        metrics = self.performance_service.summary()
+
+
+        equity = metrics.get(
+
+            "equity",
+
+            self.session.portfolio.account_balance,
+
+        )
+
+
+        latest = self.equity_history_repository.latest()
+
+
+        if latest is None or latest["equity"] != equity:
+
+            self.equity_history_repository.save(
+                equity
+            )
+
+
+        return metrics
+
+
+
+    # ==================================================
+    # EQUITY HISTORY
+    # ==================================================
+
+    def equity_history(self):
+
+        return self.equity_history_repository.all()
 
 
 

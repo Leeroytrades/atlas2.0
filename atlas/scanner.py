@@ -1,18 +1,30 @@
 """
-Atlas Scanner
+Atlas AI Trading Platform 3.0
+
+Market Scanner
+
+Responsibilities:
+
+- Scan active watchlist
+- Request strategy analysis
+- Build scan results
+- Rank opportunities
+
+Strategy logic belongs to StrategyService.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from data.market_data import MarketData
-from indicators.composite import build_indicator_set
-from strategy.signal_generator import generate_scorecard
+from services.strategy_service import StrategyService
 
 
 @dataclass(slots=True)
 class ScanResult:
+    """
+    Result of analysing one symbol.
+    """
 
     symbol: str
 
@@ -24,29 +36,43 @@ class ScanResult:
 
     confidence: float
 
+    scorecard: object | None = None
+
 
 class Scanner:
+    """
+    Market scanner.
+
+    Uses StrategyService for all analysis.
+    """
 
     def __init__(self):
 
-        self.market = MarketData()
+        self.strategy = StrategyService()
+
 
     def scan(
         self,
         symbols: list[str],
     ) -> list[ScanResult]:
+        """
+        Analyse a list of symbols.
+
+        Returns:
+            Ranked list of ScanResult objects
+        """
 
         results: list[ScanResult] = []
+
 
         for symbol in symbols:
 
             try:
 
-                df = self.market.get_history(symbol)
+                scorecard, df = self.strategy.analyse(
+                    symbol
+                )
 
-                df = build_indicator_set(df)
-
-                scorecard = generate_scorecard(df)
 
                 results.append(
 
@@ -62,13 +88,19 @@ class Scanner:
 
                         confidence=scorecard.confidence,
 
+                        scorecard=scorecard,
+
                     )
 
                 )
 
+
             except Exception as e:
 
-                print(f"{symbol}: {e}")
+                print(
+                    f"{symbol}: {e}"
+                )
+
 
         results.sort(
 
@@ -77,5 +109,6 @@ class Scanner:
             reverse=True,
 
         )
+
 
         return results
