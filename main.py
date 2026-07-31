@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 3.0
+Atlas AI Trading Platform 3.0
 
 Application Entry Point
 """
@@ -19,14 +19,26 @@ def main():
     atlas = AtlasEngine()
 
 
-    print()
-    print("Scanning Market...")
+
     print()
 
+    print("Scanning Market...")
+
+    print()
+
+
+
+    # -----------------------------
+    # Scan Market
+    # -----------------------------
 
     scans = atlas.scan_market()
 
 
+
+    # -----------------------------
+    # Find Trade
+    # -----------------------------
 
     trade = atlas.search_and_trade(
         scans
@@ -43,13 +55,33 @@ def main():
 
 
 
+    # -----------------------------
+    # Monitor Open Trades
+    # -----------------------------
+
     atlas.monitor_trades()
 
 
 
+    # -----------------------------
+    # Performance
+    # -----------------------------
+
     metrics = atlas.performance()
 
 
+
+    # -----------------------------
+    # Equity History
+    # -----------------------------
+
+    equity_history = atlas.equity_history()
+
+
+
+    # -----------------------------
+    # Dashboard
+    # -----------------------------
 
     show_dashboard(
 
@@ -59,14 +91,18 @@ def main():
 
         metrics=metrics,
 
-        equity_history=[],
+        equity_history=equity_history,
 
         current_equity=metrics.get(
+
             "equity",
+
             10000.0
+
         ),
 
     )
+
 
 
     atlas.close()

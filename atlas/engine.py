@@ -6,14 +6,13 @@ Application Engine
 Coordinates:
 
 - Session
-- Scanner Service
-- Paper Trading
-- Broker Layer
+- Scanner
+- Broker
 - Execution
+- Monitoring
 - Performance
 - Portfolio
 - Database
-- Equity Tracking
 """
 
 from __future__ import annotations
@@ -43,7 +42,7 @@ from services.paper_trading_service import PaperTradingService
 from services.execution_service import ExecutionService
 from services.performance_service import PerformanceService
 from services.portfolio_service import PortfolioService
-
+from services.monitoring_service import MonitoringService
 
 
 try:
@@ -70,23 +69,17 @@ class AtlasEngine:
 
 
         self.trades = TradeRepository(
-
             self.database
-
         )
 
 
         self.equity_history_repository = EquityHistoryRepository(
-
             self.database
-
         )
 
 
         self.journal = JournalRepository(
-
             self.database
-
         )
 
 
@@ -100,28 +93,13 @@ class AtlasEngine:
 
 
         # ==================================================
-        # MARKET DATA
+        # MARKET
         # ==================================================
 
         self.market = MarketData()
 
 
-
-        # ==================================================
-        # SCANNER
-        # ==================================================
-
         self.scanner = Scanner()
-
-
-
-        self.scanner_service = ScannerService(
-
-            self.session,
-
-            self.scanner,
-
-        )
 
 
 
@@ -130,9 +108,7 @@ class AtlasEngine:
         # ==================================================
 
         self.position_manager = PositionManager(
-
             self.trades
-
         )
 
 
@@ -155,6 +131,15 @@ class AtlasEngine:
         # SERVICES
         # ==================================================
 
+        self.scanner_service = ScannerService(
+
+            self.session,
+
+            self.scanner,
+
+        )
+
+
         self.paper_trading = PaperTradingService(
 
             self.broker,
@@ -164,7 +149,6 @@ class AtlasEngine:
             self.session.portfolio,
 
         )
-
 
 
         self.execution_service = ExecutionService(
@@ -178,13 +162,11 @@ class AtlasEngine:
         )
 
 
-
         self.performance_service = PerformanceService(
 
             self.trades
 
         )
-
 
 
         self.portfolio_service = PortfolioService(
@@ -197,12 +179,30 @@ class AtlasEngine:
 
 
 
+        # ==================================================
+        # MONITORING
+        # ==================================================
+
+        self.monitoring_service = MonitoringService(
+
+            self.scanner_service,
+
+            self.execution_service,
+
+            self.performance_service,
+
+            self.portfolio_service,
+
+        )
+
+
+
         self.load_portfolio()
 
 
 
     # ==================================================
-    # MARKET SCANNING
+    # SCANNING
     # ==================================================
 
     def scan_market(self):
@@ -212,7 +212,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # SEARCH AND TRADE
+    # TRADE CREATION
     # ==================================================
 
     def search_and_trade(
@@ -221,9 +221,7 @@ class AtlasEngine:
     ):
 
         return self.paper_trading.trade_best(
-
             scans
-
         )
 
 
@@ -246,15 +244,13 @@ class AtlasEngine:
         for trade in trades:
 
             self.session.portfolio.add_trade(
-
                 trade
-
             )
 
 
 
     # ==================================================
-    # EXECUTION MONITOR
+    # EXECUTION
     # ==================================================
 
     def monitor_trades(self):
@@ -264,62 +260,38 @@ class AtlasEngine:
 
 
     # ==================================================
+    # FULL MONITORING CYCLE
+    # ==================================================
+
+    def run_monitoring_cycle(self):
+
+        return self.monitoring_service.run_cycle()
+
+
+
+    # ==================================================
     # PERFORMANCE
     # ==================================================
 
     def performance(self):
 
-
         metrics = self.performance_service.summary()
-
 
 
         equity = metrics.get(
 
-            "current_balance",
+            "equity",
 
             self.session.portfolio.account_balance
 
         )
 
 
+        self.equity_history_repository.save(
 
-        latest = self.equity_history_repository.latest()
+            equity
 
-
-
-        if (
-
-            latest is None
-
-            or
-
-            round(
-
-                latest["equity"],
-
-                2
-
-            )
-
-            !=
-
-            round(
-
-                equity,
-
-                2
-
-            )
-
-        ):
-
-            self.equity_history_repository.save(
-
-                equity
-
-            )
-
+        )
 
 
         return metrics
@@ -327,7 +299,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # EQUITY HISTORY
+    # EQUITY
     # ==================================================
 
     def equity_history(self):
@@ -337,7 +309,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # SHUTDOWN
+    # CLOSE
     # ==================================================
 
     def close(self):
