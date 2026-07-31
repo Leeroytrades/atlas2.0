@@ -1,9 +1,15 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Platform 3.0
 
 Backtesting Strategy Runner
 
-Runs Atlas scoring logic across historical data.
+Configurable Atlas signal engine.
+
+Applies:
+
+- Score threshold filtering
+- Confidence filtering
+- Historical signal generation
 """
 
 from __future__ import annotations
@@ -15,32 +21,42 @@ from strategy.signal_generator import generate_scorecard
 
 
 
+
+
 class StrategyRunner:
 
 
-    def __init__(self):
+    def __init__(
+        self,
+        score_threshold: int = 70,
+        confidence_threshold: float = 0.70,
+    ):
 
-        pass
+        self.score_threshold = score_threshold
+
+        self.confidence_threshold = confidence_threshold
+
+
 
 
 
     def analyse(
         self,
-        dataframe
+        dataframe,
     ):
-
-        """
-        Run Atlas strategy against candle data.
-        """
 
 
         indicators = build_indicator_set(
+
             dataframe
+
         )
 
 
         scorecard = generate_scorecard(
+
             indicators
+
         )
 
 
@@ -48,36 +64,96 @@ class StrategyRunner:
 
 
 
+
+
     def run(
         self,
         dataframe,
-        symbol="UNKNOWN"
+        symbol="UNKNOWN",
     ):
-
-        """
-        Execute Atlas strategy through historical candles.
-
-        Returns generated signals.
-        """
 
 
         results = []
 
 
+
         for index in range(
+
             50,
+
             len(dataframe)
+
         ):
 
 
-            window = dataframe.iloc[:index].copy()
+
+            window = dataframe.iloc[
+
+                :index + 1
+
+            ].copy()
+
 
 
             try:
 
+
                 scorecard = self.analyse(
+
                     window
+
                 )
+
+
+
+                score = scorecard.total_score
+
+                confidence = scorecard.confidence
+
+
+
+                bias = scorecard.bias
+
+
+
+                # ---------------------------------
+                # Apply optimisation parameters
+                # ---------------------------------
+
+                if bias == "BUY":
+
+
+                    if score < self.score_threshold:
+
+                        continue
+
+
+
+                    if confidence < self.confidence_threshold:
+
+                        continue
+
+
+
+                elif bias == "SELL":
+
+
+                    if abs(score) < self.score_threshold:
+
+                        continue
+
+
+
+                    if confidence < self.confidence_threshold:
+
+                        continue
+
+
+
+                else:
+
+                    continue
+
 
 
                 results.append(
@@ -90,26 +166,29 @@ class StrategyRunner:
 
                         "symbol": symbol,
 
-                        "score": scorecard.total_score,
+                        "score": score,
 
-                        "bias": scorecard.bias,
+                        "bias": bias,
 
-                        "confidence": scorecard.confidence,
+                        "confidence": confidence,
 
                         "signal": scorecard.signal,
 
-                        "scorecard": scorecard
+                        "scorecard": scorecard,
 
                     }
 
                 )
 
 
+
             except Exception as error:
 
 
                 print(
+
                     f"Backtest error {index}: {error}"
+
                 )
 
                 continue

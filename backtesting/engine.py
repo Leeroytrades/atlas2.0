@@ -1,15 +1,16 @@
 """
-Atlas AI Trading Assistant 2.3.3
+Atlas AI Trading Platform 3.0
 
 Backtesting Engine
 
-Position lifecycle management.
+Configurable position lifecycle engine.
 
-Allows:
-- New entries after previous trade closes
-- Single active trade
-- Signal filtering
-- Risk controlled execution
+Supports:
+
+- Dynamic score thresholds
+- Dynamic confidence thresholds
+- Dynamic ATR risk settings
+- Historical strategy testing
 """
 
 from __future__ import annotations
@@ -25,12 +26,14 @@ from risk.risk_manager import create_trade
 
 
 
+
+
 class BacktestEngine:
 
 
     def __init__(
         self,
-        starting_cash: float = 100000.0
+        starting_cash: float = 100000.0,
     ):
 
 
@@ -40,20 +43,14 @@ class BacktestEngine:
         self.data = HistoricalData()
 
 
-        self.strategy = StrategyRunner()
-
-
-        self.simulator = Simulator(
-
-            starting_cash
-
-        )
-
-
 
     def run(
         self,
-        symbol: str
+        symbol: str,
+        score_threshold: int = 70,
+        confidence_threshold: float = 0.70,
+        atr_stop: float = 2.0,
+        atr_target: float = 4.0,
     ):
 
 
@@ -64,8 +61,28 @@ class BacktestEngine:
         )
 
 
+        strategy = StrategyRunner(
 
-        signals = self.strategy.run(
+            score_threshold=score_threshold,
+
+            confidence_threshold=confidence_threshold,
+
+        )
+
+
+        simulator = Simulator(
+
+            self.starting_cash,
+
+            atr_stop=atr_stop,
+
+            atr_target=atr_target,
+
+        )
+
+
+
+        signals = strategy.run(
 
             dataframe,
 
@@ -87,8 +104,6 @@ class BacktestEngine:
 
 
 
-            # Skip candles already used
-
             if index <= last_exit_index:
 
                 continue
@@ -101,13 +116,13 @@ class BacktestEngine:
 
 
 
-            if item["score"] < 70:
+            if item["score"] < score_threshold:
 
                 continue
 
 
 
-            if item["confidence"] < 0.70:
+            if item["confidence"] < confidence_threshold:
 
                 continue
 
@@ -145,7 +160,7 @@ class BacktestEngine:
 
 
 
-            simulated = self.simulator.simulate_trade(
+            simulated = simulator.simulate_trade(
 
                 trade,
 
@@ -157,10 +172,10 @@ class BacktestEngine:
 
 
 
-            # Find where trade effectively ended
+            if simulated:
 
-            last_exit_index = index
+                last_exit_index = index
 
 
 
-        return self.simulator.results()
+        return simulator.results()

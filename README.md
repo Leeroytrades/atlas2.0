@@ -1,518 +1,214 @@
-# Atlas AI Trading Assistant 3.0
-
-Professional modular algorithmic trading platform built in Python.
-
-Atlas is designed as a complete trading research and execution framework:
-
-- Market data ingestion
-- Technical analysis
-- AI-style scoring engine
-- Risk management
-- Backtesting
-- Market selection
-- Portfolio tracking
-- Trade database
-- Dashboard
-- Paper trading preparation
-- Broker integration ready architecture
-
----
-
-# Current Version
-
 Atlas AI Trading Assistant 3.0
+Overview
 
-Status:
+Atlas AI Trading Assistant is a modular algorithmic trading research platform designed for:
 
-🟢 Core architecture complete  
-🟢 Backtesting operational  
-🟢 Multi-market testing operational  
-🟢 Market ranking operational  
-🟢 Dynamic watchlist operational  
-🟡 Paper trading preparation in progress  
-🔴 Live trading not enabled
+Market scanning
+Technical analysis
+Signal generation
+Risk management
+Paper trading
+Trade monitoring
+Performance analytics
+Historical backtesting
+Strategy optimisation
 
----
+The project is built in Python with a clean modular architecture designed to evolve toward professional-grade trading infrastructure.
 
-# Project Architecture
+Current Version
+Atlas 3.0
 
+Current development focus:
 
-Atlas2.0
+Backtesting engine
+Strategy optimisation
+Multi-market analysis
+Automated configuration discovery
+Technology Stack
+Language
 
-│
-├── atlas/
-│ ├── engine.py
-│ ├── session.py
-│ ├── scanner.py
-│ └── watchlist.py
-│
-├── backtesting/
-│ ├── engine.py
-│ ├── simulator.py
-│ ├── strategy_runner.py
-│ ├── historical_data.py
-│ ├── reports.py
-│ ├── multi_engine.py
-│ ├── analytics.py
-│ └── atlas_strategy.py
-│
-├── data/
-│ └── market_data.py
-│
-├── indicators/
-│ ├── composite.py
-│ ├── trend.py
-│ ├── momentum.py
-│ ├── volatility.py
-│ └── volume.py
-│
-├── scoring/
-│ ├── trend_score.py
-│ ├── momentum_score.py
-│ ├── volatility_score.py
-│ └── volume_score.py
-│
-├── strategy/
-│ └── signal_generator.py
-│
-├── risk/
-│ ├── risk_manager.py
-│ ├── position_manager.py
-│ └── trade_monitor.py
-│
-├── services/
-│ ├── execution_service.py
-│ ├── performance_service.py
-│ ├── portfolio_service.py
-│ ├── scanner_service.py
-│ ├── strategy_service.py
-│ └── trade_service.py
-│
-├── database/
-│ ├── database.py
-│ ├── trades.py
-│ ├── equity_history.py
-│ └── journal.py
-│
-├── watchlist/
-│ └── market_selector.py
-│
-├── display/
-│ └── dashboard.py
-│
-└── main.py
+Python 3.12
 
-
----
-
-# Core System Flow
-
-
-Market Data
-
-  ↓
-
-Indicators
-
-  ↓
-
-Scoring Engine
-
-  ↓
-
-Signal Generator
-
-  ↓
-
-Risk Manager
-
-  ↓
-
-Trade Creation
-
-  ↓
-
-Database
-
-  ↓
-
-Portfolio
-
-  ↓
-
-Dashboard
-
-
----
-
-# Completed Features
-
-## Market Scanner
-
-Completed.
-
-Features:
-
-- Multiple symbol scanning
-- Indicator generation
-- Scorecard creation
-- BUY / SELL / HOLD classification
-
-
----
-
-## Technical Indicators
-
-Completed.
-
-Current indicators:
-
-- SMA 20
-- SMA 50
-- EMA 20
-- EMA 50
-- ADX
-- DI+
-- DI-
-- RSI
-- ATR
-- Bollinger Width
-- Volume metrics
-
-
----
-
-## Scoring Engine
-
-Completed.
-
-Components:
-
-Trend Score
-
-Momentum Score
-
-Volatility Score
-
-Volume Score
-
-
-Example:
-
-
-Trend: 40
-Momentum: 20
-Volatility: 10
-Volume: 20
-
-Total: 90
-Signal: BUY
-
-
----
-
-# Risk Management
-
-Completed.
-
-Current:
-
-- Account risk calculation
-- Position sizing
-- Stop placement
-- Take profit
-- Risk reward calculation
-
-
----
-
-# Backtesting System
-
-Completed.
-
-Capabilities:
-
-- Historical data loading
-- Strategy execution
-- Trade simulation
-- ATR stop loss
-- ATR take profit
-- Trailing stops
-- Maximum holding period
-- Slippage
-- Commission simulation
-- Equity tracking
-
-
----
-
-# Backtesting Results
-
-Latest multi-market testing:
-
-## MSFT
-
-
-Profit:
-+2907
-
-Trades:
-6
-
-Win Rate:
-50%
-
-Profit Factor:
-2.69
-
-
----
-
-## AAPL
-
-
-Profit:
-+1461
-
-Trades:
-8
-
-Win Rate:
-50%
-
-Profit Factor:
-1.56
-
-
----
-
-## QQQ
-
-
-Profit:
-+791
-
-Trades:
-23
-
-Win Rate:
-43.48%
-
-Profit Factor:
-1.15
-
-
----
-
-## SPY
-
-Currently filtered:
-
-
-Loss:
--3320
-
-Profit Factor:
-0.80
-
-
----
-
-Combined:
-
-
-Markets Tested:
-5
-
-Trades:
-99
-
-Wins:
-40
-
-Combined Profit:
-+1838
-
-Win Rate:
-40.4%
-
-
----
-
-# Market Selection
-
-Completed.
-
-Process:
-
-
-Backtest Results
-
-    ↓
-
-Market Analytics
-
-    ↓
-
-Ranking
-
-    ↓
-
-Market Selector
-
-    ↓
-
-watchlist.txt
-
-
-Current selected watchlist example:
-
-
-MSFT
-QQQ
-AAPL
-
-
----
-
-# Database
-
-Completed.
-
-SQLite persistence.
-
-Current tables:
-
-Trades
-
-Stores:
-
-- Symbol
-- Direction
-- Entry
-- Stop
-- Target
-- Quantity
-- Risk
-- Reward
-- Confidence
-- Status
-- Profit/Loss
-
-
-Equity history
-
-Trade journal
-
-
----
-
-# Services Layer
-
-Created.
-
-Current services:
-
-
-execution_service.py
-
-performance_service.py
-
-portfolio_service.py
-
-scanner_service.py
-
-strategy_service.py
-
-trade_service.py
-
-
----
-
-# Current Development Phase
-
-## Phase 4: Paper Trading Preparation
-
-Next objectives:
-
-1. Connect market selector to live scanning
-
-2. Create paper execution engine
-
-3. Add trade lifecycle management
-
-4. Add signal explanations
-
-5. Add portfolio risk controls
-
-6. Improve dashboard
-
----
-
-# Important Development Rule
-
-DO NOT replace random individual files.
-
-Future changes should be:
-
-1. Identify module
-2. Replace complete file
-3. Test
-4. Commit to GitHub
-
-
----
-
-# Environment
+Environment
 
 Windows 11
 
-Python:
-
-3.12.10
-
 Virtual environment:
 
-
 .venv
+Main Libraries
+pandas
+numpy
+yfinance
+ta
+rich
+pytest
+Project Architecture
+Atlas2.0/
 
+│
+├── main.py
+├── backtest.py
+├── optimise.py
+│
+├── atlas/
+│   ├── engine.py
+│   ├── session.py
+│   ├── portfolio.py
+│   └── watchlist.py
+│
+├── data/
+│   └── market_data.py
+│
+├── indicators/
+│   └── composite.py
+│
+├── strategy/
+│   └── signal_generator.py
+│
+├── risk/
+│   ├── risk_manager.py
+│   └── trade.py
+│
+├── services/
+│   ├── scanner_service.py
+│   ├── trade_service.py
+│   ├── paper_trading_service.py
+│   ├── execution_service.py
+│   ├── monitoring_service.py
+│   └── performance_service.py
+│
+├── database/
+│   ├── database.py
+│   └── trades.py
+│
+├── backtesting/
+│   ├── engine.py
+│   ├── simulator.py
+│   ├── strategy_runner.py
+│   ├── historical_data.py
+│   ├── analytics.py
+│   ├── reports.py
+│   └── multi_engine.py
+│
+└── optimisation/
+    └── optimizer.py
+Completed Features
+Market Intelligence
 
-Run:
+Completed:
 
+Market data retrieval
+Indicator generation
+Composite scoring
+Bull/bear bias detection
+Confidence scoring
+Trading System
 
-.venv\Scripts\activate
-python main.py
+Completed:
 
+Trade model
+Position sizing
+Risk calculations
+Stop loss handling
+Take profit handling
+Portfolio tracking
+Paper trading workflow
+Database
 
----
+Completed:
 
-# Git Repository
+SQLite persistence.
 
-Repository:
+Tracks:
 
-https://github.com/Leeroytrades/atlas2.0
+Symbol
+Direction
+Entry
+Stop loss
+Take profit
+Quantity
+Risk
+Reward
+Confidence
+Open/closed status
+Profit/loss
+Dashboard
 
+Completed:
 
-Backup:
+Rich terminal dashboard showing:
 
+Market scanner
+Portfolio
+Performance analytics
+Equity statistics
+Backtesting System
 
-git add .
-git commit -m "Update Atlas"
-git push origin main
+Completed:
 
+Historical simulation engine.
 
----
+Features:
 
-# Current Goal
+Historical candle replay
+Signal generation
+Trade lifecycle simulation
+ATR stops
+ATR targets
+Trailing stops
+Commission simulation
+Slippage simulation
+Equity tracking
+Strategy Optimisation
 
-Transform Atlas from:
+Current development:
 
-"Backtesting research platform"
+Atlas Optimiser.
 
-into:
+Current search:
 
-"Paper trading AI trading assistant"
+Score Threshold:
+50-120
 
-Next milestone:
+Confidence:
+0.5-1.0
 
-ATLAS LIVE ENGINE 3.1
+ATR Stop:
+1.5-3.0
+
+ATR Target:
+3.0-6.0
+
+Total combinations:
+
+768
+
+The optimiser ranks configurations using:
+
+Profit
+Profit factor
+Win rate
+Trade reliability
+Current Development Goal
+
+Transform Atlas from a functional trading framework into an adaptive strategy research platform.
+
+Next priorities:
+
+Complete optimisation system
+Save winning configurations
+Multi-symbol optimisation
+Market regime detection
+Strategy improvement
+Live paper trading validation
+Broker integration readiness
+Development Rules
+
+When modifying Atlas:
+
+Keep modules independent
+Use complete replacement files
+Avoid partial patches
+Test after each milestone
+Commit working versions to GitHub
