@@ -13,6 +13,7 @@ Coordinates:
 - Performance
 - Portfolio
 - Database
+- Equity Tracking
 """
 
 from __future__ import annotations
@@ -55,8 +56,6 @@ except ImportError:
 
 
 
-
-
 class AtlasEngine:
 
 
@@ -71,17 +70,23 @@ class AtlasEngine:
 
 
         self.trades = TradeRepository(
+
             self.database
+
         )
 
 
         self.equity_history_repository = EquityHistoryRepository(
+
             self.database
+
         )
 
 
         self.journal = JournalRepository(
+
             self.database
+
         )
 
 
@@ -95,13 +100,28 @@ class AtlasEngine:
 
 
         # ==================================================
-        # MARKET + SCANNER
+        # MARKET DATA
         # ==================================================
 
         self.market = MarketData()
 
 
+
+        # ==================================================
+        # SCANNER
+        # ==================================================
+
         self.scanner = Scanner()
+
+
+
+        self.scanner_service = ScannerService(
+
+            self.session,
+
+            self.scanner,
+
+        )
 
 
 
@@ -110,7 +130,9 @@ class AtlasEngine:
         # ==================================================
 
         self.position_manager = PositionManager(
+
             self.trades
+
         )
 
 
@@ -132,16 +154,6 @@ class AtlasEngine:
         # ==================================================
         # SERVICES
         # ==================================================
-
-        self.scanner_service = ScannerService(
-
-            self.session,
-
-            self.scanner,
-
-        )
-
-
 
         self.paper_trading = PaperTradingService(
 
@@ -200,7 +212,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # TRADE SEARCH
+    # SEARCH AND TRADE
     # ==================================================
 
     def search_and_trade(
@@ -209,7 +221,9 @@ class AtlasEngine:
     ):
 
         return self.paper_trading.trade_best(
+
             scans
+
         )
 
 
@@ -232,7 +246,9 @@ class AtlasEngine:
         for trade in trades:
 
             self.session.portfolio.add_trade(
+
                 trade
+
             )
 
 
@@ -253,35 +269,57 @@ class AtlasEngine:
 
     def performance(self):
 
+
         metrics = self.performance_service.summary()
+
 
 
         equity = metrics.get(
 
-            "equity",
+            "current_balance",
 
             self.session.portfolio.account_balance
 
         )
 
 
+
         latest = self.equity_history_repository.latest()
 
 
-        last_equity = None
 
+        if (
 
-        if latest:
+            latest is None
 
-            last_equity = latest["equity"]
+            or
 
+            round(
 
+                latest["equity"],
 
-        if last_equity != equity:
+                2
+
+            )
+
+            !=
+
+            round(
+
+                equity,
+
+                2
+
+            )
+
+        ):
 
             self.equity_history_repository.save(
+
                 equity
+
             )
+
 
 
         return metrics
@@ -299,7 +337,7 @@ class AtlasEngine:
 
 
     # ==================================================
-    # CLOSE
+    # SHUTDOWN
     # ==================================================
 
     def close(self):

@@ -1,7 +1,15 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Platform 3.0
 
 Equity History Repository
+
+Stores account equity snapshots.
+
+Responsibilities:
+
+- Save equity points
+- Retrieve latest equity
+- Return equity curve history
 """
 
 from __future__ import annotations
@@ -15,22 +23,39 @@ class EquityHistoryRepository:
 
     def __init__(
         self,
-        database
+        database,
     ):
 
         self.database = database
 
 
 
-    # ---------------------------------------------------------
-    # Save Equity Point
-    # ---------------------------------------------------------
+    # ==================================================
+    # SAVE EQUITY SNAPSHOT
+    # ==================================================
 
     def save(
         self,
         equity: float,
-        trade_id=None
+        trade_id=None,
     ):
+
+        latest = self.latest()
+
+
+        if latest:
+
+            if round(
+                latest["equity"],
+                2
+            ) == round(
+                equity,
+                2
+            ):
+
+                return latest
+
+
 
         query = """
 
@@ -47,26 +72,35 @@ class EquityHistoryRepository:
         """
 
 
+
         self.database.execute(
 
             query,
 
             (
+
                 trade_id,
 
-                equity,
+                round(
+                    equity,
+                    2
+                ),
 
-                datetime.now().isoformat()
+                datetime.now().isoformat(),
 
-            )
+            ),
 
         )
 
 
 
-    # ---------------------------------------------------------
-    # Latest Equity
-    # ---------------------------------------------------------
+        return self.latest()
+
+
+
+    # ==================================================
+    # LATEST EQUITY
+    # ==================================================
 
     def latest(self):
 
@@ -83,8 +117,11 @@ class EquityHistoryRepository:
         """
 
 
+
         rows = self.database.fetch_all(
+
             query
+
         )
 
 
@@ -97,9 +134,9 @@ class EquityHistoryRepository:
 
 
 
-    # ---------------------------------------------------------
-    # All History
-    # ---------------------------------------------------------
+    # ==================================================
+    # FULL EQUITY CURVE
+    # ==================================================
 
     def all(self):
 
@@ -114,8 +151,27 @@ class EquityHistoryRepository:
         """
 
 
+
         return self.database.fetch_all(
 
             query
+
+        )
+
+
+
+    # ==================================================
+    # CLEAR HISTORY
+    # ==================================================
+
+    def clear(self):
+
+        self.database.execute(
+
+            """
+
+            DELETE FROM equity_history
+
+            """
 
         )
