@@ -4,28 +4,29 @@ Market data access layer.
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Optional
-
 import pandas as pd
 import yfinance as yf
 
+from cache import CacheManager
+from config.settings import settings
+
 
 class MarketData:
+    """Provides historical and latest market data."""
 
-    def __init__(self, cache_directory: str = "data"):
+    def __init__(self) -> None:
 
-        self.cache_directory = Path(cache_directory)
+        self.cache = CacheManager()
 
-    # ---------------------------------------------------------
-    # Download history
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Download Data
+    # ------------------------------------------------------------------
 
-    def get_history(
+    def _download(
         self,
         symbol: str,
-        period: str = "2y",
-        interval: str = "1d",
+        period: str,
+        interval: str,
     ) -> pd.DataFrame:
 
         df = yf.download(
@@ -42,68 +43,108 @@ class MarketData:
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
 
-        df = df[["Open", "High", "Low", "Close", "Volume"]]
+        df = df[["Open", "High", "Low", "Close", "Volume"]].copy()
 
-        for col in df.columns:
+        for column in df.columns:
 
-            if isinstance(df[col], pd.DataFrame):
-                df[col] = df[col].iloc[:, 0]
+            if isinstance(df[column], pd.DataFrame):
+                df[column] = df[column].iloc[:, 0]
+
+        df.sort_index(inplace=True)
 
         return df
 
-    # ---------------------------------------------------------
-    # Latest Market Price
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Historical Data
+    # ------------------------------------------------------------------
+
+    def get_history(
+        self,
+        symbol: str,
+        period: str | None = None,
+        interval: str | None = None,
+        use_cache: bool = True,
+    ) -> pd.DataFrame:
+
+        period = period or settings.data.default_period
+        interval = interval or settings.data.default_interval
+
+        if use_cache:
+
+            if (
+                self.cache.exists(symbol, period, interval)
+                and not self.cache.is_expired(symbol, period, interval)
+            ):
+
+                cached = self.cache.load(
+                    symbol,
+                    period,
+                    interval,
+                )
+
+                if cached is not None:
+                    return cached
+
+        df = self._download(
+            symbol,
+            period,
+            interval,
+        )
+
+        if use_cache:
+            self.cache.save(
+                df,
+                symbol,
+                period,
+                interval,
+            )
+
+        return df
+
+    # ------------------------------------------------------------------
+    # Latest Price
+    # ------------------------------------------------------------------
 
     def get_price(
         self,
         symbol: str,
     ) -> float:
-        """
-        Returns the latest closing price.
-        """
 
         df = self.get_history(
-            symbol,
+            symbol=symbol,
             period="5d",
             interval="1d",
         )
 
         return float(df["Close"].iloc[-1])
 
-    # ---------------------------------------------------------
-    # Cache
-    # ---------------------------------------------------------
+    # ------------------------------------------------------------------
+    # Cache Utilities
+    # ------------------------------------------------------------------
 
-    def save_csv(
+    def clear_cache(self) -> None:
+
+        self.cache.clear()
+
+    def refresh_cache(
         self,
-        df: pd.DataFrame,
         symbol: str,
-    ) -> Path:
+        period: str | None = None,
+        interval: str | None = None,
+    ) -> pd.DataFrame:
 
-        self.cache_directory.mkdir(
-            parents=True,
-            exist_ok=True,
+        period = period or settings.data.default_period
+        interval = interval or settings.data.default_interval
+
+        self.cache.delete(
+            symbol,
+            period,
+            interval,
         )
 
-        path = self.cache_directory / f"{symbol}.csv"
-
-        df.to_csv(path)
-
-        return path
-
-    def load_csv(
-        self,
-        symbol: str,
-    ) -> Optional[pd.DataFrame]:
-
-        path = self.cache_directory / f"{symbol}.csv"
-
-        if not path.exists():
-            return None
-
-        return pd.read_csv(
-            path,
-            index_col=0,
-            parse_dates=True,
+        return self.get_history(
+            symbol,
+            period,
+            interval,
+            use_cache=True,
         )

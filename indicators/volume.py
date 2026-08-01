@@ -1,7 +1,17 @@
 """
-Atlas AI Trading Assistant 2.0
+Atlas AI Trading Assistant 3.0
 
 Volume Indicators
+
+Responsible for:
+
+- On Balance Volume
+- Chaikin Money Flow
+- VWAP
+
+Atlas 3.0 modifies the supplied DataFrame in-place to
+avoid unnecessary DataFrame copies during research,
+optimisation and backtesting.
 """
 
 from __future__ import annotations
@@ -15,50 +25,51 @@ from ta.volume import (
 )
 
 
-def add_volume_indicators(df: pd.DataFrame) -> pd.DataFrame:
+def add_volume_indicators(
+    df: pd.DataFrame,
+) -> pd.DataFrame:
     """
-    Adds volume-based indicators.
+    Adds volume indicators directly to the supplied
+    DataFrame.
     """
 
-    data = df.copy()
-
-    # =========================
+    # =========================================================
     # On Balance Volume
-    # =========================
+    # =========================================================
 
     obv = OnBalanceVolumeIndicator(
-        close=data["Close"],
-        volume=data["Volume"],
+        close=df["Close"],
+        volume=df["Volume"],
     )
 
-    data["OBV"] = obv.on_balance_volume()
+    df["OBV"] = obv.on_balance_volume()
 
-    # =========================
+    # =========================================================
     # Chaikin Money Flow
-    # =========================
+    # =========================================================
 
     cmf = ChaikinMoneyFlowIndicator(
-        high=data["High"],
-        low=data["Low"],
-        close=data["Close"],
-        volume=data["Volume"],
+        high=df["High"],
+        low=df["Low"],
+        close=df["Close"],
+        volume=df["Volume"],
         window=20,
     )
 
-    data["CMF"] = cmf.chaikin_money_flow()
+    df["CMF"] = cmf.chaikin_money_flow()
 
-    # =========================
+    # =========================================================
     # VWAP
-    # =========================
+    # =========================================================
 
     vwap = VolumeWeightedAveragePrice(
-        high=data["High"],
-        low=data["Low"],
-        close=data["Close"],
-        volume=data["Volume"],
+        high=df["High"],
+        low=df["Low"],
+        close=df["Close"],
+        volume=df["Volume"],
         window=14,
     )
 
-    data["VWAP"] = vwap.volume_weighted_average_price()
+    df["VWAP"] = vwap.volume_weighted_average_price()
 
-    return data
+    return df

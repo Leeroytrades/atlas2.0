@@ -1,16 +1,16 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Platform 3.0
 
 Trend Scoring Engine
 
 Uses:
 
 - EMA alignment
-- SMA trend
+- SMA alignment
 - ADX strength
 - Directional movement
+- Pullback quality
 """
-
 
 from __future__ import annotations
 
@@ -43,50 +43,27 @@ def calculate_trend_score(
 
 
 
-    close = float(
-        row["Close"]
-    )
+    close = float(row["Close"])
 
+    ema20 = float(row["EMA_20"])
 
-    ema20 = float(
-        row["EMA_20"]
-    )
+    ema50 = float(row["EMA_50"])
 
+    sma20 = float(row["SMA_20"])
 
-    ema50 = float(
-        row["EMA_50"]
-    )
+    sma50 = float(row["SMA_50"])
 
+    adx = float(row["ADX"])
 
-    sma20 = float(
-        row["SMA_20"]
-    )
+    di_plus = float(row["DI_PLUS"])
 
-
-    sma50 = float(
-        row["SMA_50"]
-    )
-
-
-    adx = float(
-        row["ADX"]
-    )
-
-
-    di_plus = float(
-        row["DI_PLUS"]
-    )
-
-
-    di_minus = float(
-        row["DI_MINUS"]
-    )
+    di_minus = float(row["DI_MINUS"])
 
 
 
-    # -------------------------
-    # EMA TREND
-    # -------------------------
+    # =====================================================
+    # EMA TREND DIRECTION
+    # =====================================================
 
     if ema20 > ema50:
 
@@ -95,7 +72,6 @@ def calculate_trend_score(
         reasons.append(
             "EMA20 above EMA50 bullish trend"
         )
-
 
     else:
 
@@ -107,9 +83,9 @@ def calculate_trend_score(
 
 
 
-    # -------------------------
-    # SMA TREND
-    # -------------------------
+    # =====================================================
+    # SMA TREND DIRECTION
+    # =====================================================
 
     if sma20 > sma50:
 
@@ -118,7 +94,6 @@ def calculate_trend_score(
         reasons.append(
             "SMA20 above SMA50"
         )
-
 
     else:
 
@@ -130,34 +105,70 @@ def calculate_trend_score(
 
 
 
-    # -------------------------
-    # PRICE POSITION
-    # -------------------------
+    # =====================================================
+    # PULLBACK QUALITY
+    #
+    # Reward price near EMA20
+    # Penalise chasing
+    # =====================================================
 
-    if close > ema20:
+    ema_distance = (
 
-        score += 10
+        (close - ema20)
 
-        reasons.append(
-            "Price above EMA20"
-        )
+        /
+
+        ema20
+
+    )
 
 
-    else:
+
+    if abs(ema_distance) <= 0.01:
+
+
+        if close >= ema20:
+
+            score += 15
+
+            reasons.append(
+                "Bullish EMA20 pullback entry"
+            )
+
+        else:
+
+            score -= 15
+
+            reasons.append(
+                "Bearish EMA20 pullback entry"
+            )
+
+
+    elif ema_distance > 0.05:
 
         score -= 10
 
         reasons.append(
-            "Price below EMA20"
+            "Price extended above EMA20"
+        )
+
+
+    elif ema_distance < -0.05:
+
+        score += 10
+
+        reasons.append(
+            "Price extended below EMA20"
         )
 
 
 
-    # -------------------------
+    # =====================================================
     # ADX TREND STRENGTH
-    # -------------------------
+    # =====================================================
 
     if adx >= 25:
+
 
         if di_plus > di_minus:
 
@@ -185,14 +196,18 @@ def calculate_trend_score(
 
 
 
-    # -------------------------
+    # =====================================================
     # NORMALISE
-    # -------------------------
+    # =====================================================
 
     score = max(
+
         min(score,70),
+
         -70
+
     )
+
 
 
     return TrendScore(

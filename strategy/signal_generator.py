@@ -1,16 +1,22 @@
 """
-Atlas AI Trading Assistant 2.3.3
+Atlas AI Trading Assistant 3.2
 
-Signal Generator
+Optimised Signal Generator
 
-Creates higher quality trading signals.
+Creates configurable trading signals.
 
-Adds:
+Supports:
+
 - Trend confirmation
 - Momentum confirmation
 - Volatility confirmation
 - Volume confirmation
 - EMA20 pullback filter
+- Optimiser controlled thresholds
+
+Optimised:
+- Reduced dataframe duplication
+- Faster repeated backtesting
 """
 
 from __future__ import annotations
@@ -27,17 +33,33 @@ from scoring.volume_score import calculate_volume_score
 
 
 def generate_scorecard(
-    df: pd.DataFrame
+    df: pd.DataFrame,
+    buy_threshold: int = 70,
 ) -> Scorecard:
 
 
-    trend = calculate_trend_score(df)
+    # ---------------------------------
+    # Only evaluate latest candle
+    # ---------------------------------
 
-    momentum = calculate_momentum_score(df)
+    row = df.iloc[-1:]
 
-    volatility = calculate_volatility_score(df)
 
-    volume = calculate_volume_score(df)
+    trend = calculate_trend_score(
+        df
+    )
+
+    momentum = calculate_momentum_score(
+        df
+    )
+
+    volatility = calculate_volatility_score(
+        df
+    )
+
+    volume = calculate_volume_score(
+        df
+    )
 
 
 
@@ -75,12 +97,12 @@ def generate_scorecard(
 
 
 
-    row = df.iloc[-1]
+    candle = row.iloc[0]
 
 
 
     adx = float(
-        row.get(
+        candle.get(
             "ADX",
             0
         )
@@ -88,7 +110,7 @@ def generate_scorecard(
 
 
     di_plus = float(
-        row.get(
+        candle.get(
             "DI_PLUS",
             0
         )
@@ -96,7 +118,7 @@ def generate_scorecard(
 
 
     di_minus = float(
-        row.get(
+        candle.get(
             "DI_MINUS",
             0
         )
@@ -104,7 +126,7 @@ def generate_scorecard(
 
 
     rsi = float(
-        row.get(
+        candle.get(
             "RSI",
             50
         )
@@ -112,7 +134,7 @@ def generate_scorecard(
 
 
     close = float(
-        row.get(
+        candle.get(
             "Close",
             0
         )
@@ -120,7 +142,7 @@ def generate_scorecard(
 
 
     ema20 = float(
-        row.get(
+        candle.get(
             "EMA_20",
             close
         )
@@ -142,11 +164,7 @@ def generate_scorecard(
 
     momentum_confirmed = (
 
-        rsi > 45
-
-        and
-
-        rsi < 70
+        45 < rsi < 70
 
     )
 
@@ -168,11 +186,6 @@ def generate_scorecard(
 
 
 
-    #
-    # Prevent late entries
-    # Only buy close to EMA20
-    #
-
     pullback_confirmed = (
 
         close <= ema20 * 1.02
@@ -183,27 +196,17 @@ def generate_scorecard(
 
     if (
 
-        score.total_score >= 70
+        score.total_score >= buy_threshold
 
-        and
+        and trend_confirmed
 
-        trend_confirmed
+        and momentum_confirmed
 
-        and
+        and volatility_confirmed
 
-        momentum_confirmed
+        and volume_confirmed
 
-        and
-
-        volatility_confirmed
-
-        and
-
-        volume_confirmed
-
-        and
-
-        pullback_confirmed
+        and pullback_confirmed
 
     ):
 
@@ -214,7 +217,7 @@ def generate_scorecard(
 
 
 
-    elif score.total_score <= 30:
+    elif score.total_score <= -buy_threshold:
 
 
         score.bearish = True
@@ -239,7 +242,6 @@ def generate_scorecard(
     )
 
 
-
     return score
 
 
@@ -251,39 +253,27 @@ def explain_signal(
 ) -> list[str]:
 
 
-    trend = calculate_trend_score(df)
-
-    momentum = calculate_momentum_score(df)
-
-    volatility = calculate_volatility_score(df)
-
-    volume = calculate_volume_score(df)
-
-
-
     reasons = []
 
 
-
     reasons.extend(
-        trend.reasons
+        calculate_trend_score(df).reasons
     )
 
 
     reasons.extend(
-        momentum.reasons
+        calculate_momentum_score(df).reasons
     )
 
 
     reasons.extend(
-        volatility.reasons
+        calculate_volatility_score(df).reasons
     )
 
 
     reasons.extend(
-        volume.reasons
+        calculate_volume_score(df).reasons
     )
-
 
 
     return reasons

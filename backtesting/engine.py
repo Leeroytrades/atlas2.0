@@ -3,32 +3,40 @@ Atlas AI Trading Platform 3.0
 
 Backtesting Engine
 
-Configurable position lifecycle engine.
+Optimised configurable position lifecycle engine.
 
 Supports:
 
+- Long trades
+- Short trades
 - Dynamic score thresholds
 - Dynamic confidence thresholds
 - Dynamic ATR risk settings
-- Historical strategy testing
+- Cached datasets
+- Fast optimisation runs
 """
 
 from __future__ import annotations
 
+import pandas as pd
 
 from backtesting.historical_data import HistoricalData
-
 from backtesting.strategy_runner import StrategyRunner
-
 from backtesting.simulator import Simulator
 
 from risk.risk_manager import create_trade
 
 
 
-
-
 class BacktestEngine:
+
+
+    # =====================================================
+    # Shared dataset cache
+    # =====================================================
+
+    _data_cache: dict[str, pd.DataFrame] = {}
+
 
 
     def __init__(
@@ -36,17 +44,39 @@ class BacktestEngine:
         starting_cash: float = 100000.0,
     ):
 
-
         self.starting_cash = starting_cash
-
 
         self.data = HistoricalData()
 
 
 
-    def run(
+    def _get_data(
         self,
         symbol: str,
+    ) -> pd.DataFrame:
+
+
+        if symbol in self._data_cache:
+
+            return self._data_cache[symbol]
+
+
+
+        dataframe = self.data.load(
+            symbol
+        )
+
+
+        self._data_cache[symbol] = dataframe
+
+
+        return dataframe
+
+
+
+    def run(
+        self,
+        symbol: str | pd.DataFrame,
         score_threshold: int = 70,
         confidence_threshold: float = 0.70,
         atr_stop: float = 2.0,
@@ -54,12 +84,34 @@ class BacktestEngine:
     ):
 
 
-        dataframe = self.data.load(
+        # =====================================================
+        # Dataset handling
+        # =====================================================
 
-            symbol
+        if isinstance(
+            symbol,
+            pd.DataFrame,
+        ):
 
-        )
+            dataframe = symbol
 
+            trade_symbol = "UNKNOWN"
+
+
+        else:
+
+            trade_symbol = symbol
+
+
+            dataframe = self._get_data(
+                symbol
+            )
+
+
+
+        # =====================================================
+        # Strategy
+        # =====================================================
 
         strategy = StrategyRunner(
 
@@ -69,6 +121,21 @@ class BacktestEngine:
 
         )
 
+
+
+        signals = strategy.run(
+
+            dataframe,
+
+            trade_symbol,
+
+        )
+
+
+
+        # =====================================================
+        # Simulator
+        # =====================================================
 
         simulator = Simulator(
 
@@ -82,22 +149,15 @@ class BacktestEngine:
 
 
 
-        signals = strategy.run(
-
-            dataframe,
-
-            symbol
-
-        )
-
-
-
         last_exit_index = -1
 
 
 
-        for item in signals:
+        # =====================================================
+        # Trade lifecycle
+        # =====================================================
 
+        for item in signals:
 
 
             index = item["index"]
@@ -110,7 +170,17 @@ class BacktestEngine:
 
 
 
-            if item["bias"] != "BUY":
+            bias = item["bias"]
+
+
+
+            if bias not in (
+
+                "BUY",
+
+                "SELL",
+
+            ):
 
                 continue
 
@@ -129,16 +199,28 @@ class BacktestEngine:
 
 
             window = dataframe.iloc[
-
                 :index + 1
-
             ]
+
+
+
+            direction = (
+
+                "LONG"
+
+                if bias == "BUY"
+
+                else
+
+                "SHORT"
+
+            )
 
 
 
             trade = create_trade(
 
-                symbol,
+                trade_symbol,
 
                 window,
 
@@ -146,7 +228,7 @@ class BacktestEngine:
 
                 1.0,
 
-                "LONG",
+                direction,
 
                 item["confidence"]
 
@@ -169,7 +251,6 @@ class BacktestEngine:
                 index
 
             )
-
 
 
             if simulated:

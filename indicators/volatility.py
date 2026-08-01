@@ -1,16 +1,17 @@
 """
-Atlas AI Trading Assistant 2.3
+Atlas AI Trading Assistant 3.0
 
-Volatility & Trend Strength Indicators
+Volatility Indicators
 
-Adds:
+Responsible for:
 
 - ATR
 - Bollinger Bands
 - Bollinger Width
-- ADX
-- Positive Directional Indicator
-- Negative Directional Indicator
+
+Trend indicators (ADX / DI) are intentionally NOT
+calculated here. Those belong exclusively to
+indicators.trend.
 """
 
 from __future__ import annotations
@@ -22,110 +23,49 @@ from ta.volatility import (
     BollingerBands,
 )
 
-from ta.trend import ADXIndicator
-
-
 
 def add_volatility_indicators(
-    df: pd.DataFrame
+    df: pd.DataFrame,
 ) -> pd.DataFrame:
-
     """
-    Adds volatility and trend strength indicators.
+    Adds volatility indicators directly to the supplied
+    DataFrame.
+
+    Atlas 3.0 modifies the DataFrame in-place to reduce
+    unnecessary DataFrame copies during optimisation and
+    backtesting.
     """
 
-    data = df.copy()
-
-
-
-    # ==========================
-    # ATR
-    # ==========================
+    # =========================================================
+    # Average True Range
+    # =========================================================
 
     atr = AverageTrueRange(
-        high=data["High"],
-        low=data["Low"],
-        close=data["Close"],
+        high=df["High"],
+        low=df["Low"],
+        close=df["Close"],
         window=14,
     )
 
-    data["ATR"] = atr.average_true_range()
+    df["ATR"] = atr.average_true_range()
 
-
-
-    # ==========================
+    # =========================================================
     # Bollinger Bands
-    # ==========================
+    # =========================================================
 
     bb = BollingerBands(
-        close=data["Close"],
+        close=df["Close"],
         window=20,
         window_dev=2,
     )
 
+    df["BB_UPPER"] = bb.bollinger_hband()
+    df["BB_MIDDLE"] = bb.bollinger_mavg()
+    df["BB_LOWER"] = bb.bollinger_lband()
 
-    data["BB_UPPER"] = (
-        bb.bollinger_hband()
+    df["BB_WIDTH"] = (
+        (df["BB_UPPER"] - df["BB_LOWER"])
+        / df["BB_MIDDLE"]
     )
 
-
-    data["BB_MIDDLE"] = (
-        bb.bollinger_mavg()
-    )
-
-
-    data["BB_LOWER"] = (
-        bb.bollinger_lband()
-    )
-
-
-    data["BB_WIDTH"] = (
-
-        (
-            data["BB_UPPER"]
-            -
-            data["BB_LOWER"]
-        )
-
-        /
-
-        data["BB_MIDDLE"]
-
-    )
-
-
-
-    # ==========================
-    # ADX Trend Strength
-    # ==========================
-
-    adx = ADXIndicator(
-
-        high=data["High"],
-
-        low=data["Low"],
-
-        close=data["Close"],
-
-        window=14,
-
-    )
-
-
-    data["ADX"] = (
-        adx.adx()
-    )
-
-
-    data["+DI"] = (
-        adx.adx_pos()
-    )
-
-
-    data["-DI"] = (
-        adx.adx_neg()
-    )
-
-
-
-    return data
+    return df

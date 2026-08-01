@@ -1,236 +1,205 @@
-Atlas AI Trading Assistant 3.0
+Atlas AI Trading Platform
 Project Status
 
 Date:
-31 July 2026
+August 2026
 
-Current State
+Version:
+Atlas 3.2
 
-Atlas is currently operational.
+Completed Features
+Core System
 
-The system can:
+✅ Modular architecture
+✅ Market data pipeline
+✅ Indicator engine
+✅ Scorecard system
+✅ Signal generator
+✅ Risk management
+✅ Trade creation
+✅ Backtesting engine
 
-✅ Load market data
-✅ Generate technical indicators
-✅ Produce trading signals
-✅ Create trades
-✅ Manage risk
-✅ Track portfolio state
-✅ Store trades in SQLite
-✅ Simulate historical trades
-✅ Run optimisation experiments
+Research Engine
 
-Current Milestone
-Backtesting + Optimisation Phase
+Completed:
 
-Status:
+✅ Historical dataset cache
+✅ Parquet datasets
+✅ Parallel optimisation
+✅ Configuration testing
+✅ SQLite optimisation storage
+✅ Ranking engine
 
-IN PROGRESS
+Performance Improvements
 
-Latest Completed Work
-StrategyRunner
+Completed:
 
-Completed.
+✅ Cached datasets
+✅ Removed unnecessary repeated processing
+✅ Optimised signal generation
+✅ Faster optimisation cycles
 
-Now supports:
+Current Best Results
+SPY
 
-Score threshold filtering
-Confidence filtering
-Configurable optimisation parameters
+Configuration:
 
-Verified:
+Score Threshold:
+40
 
-Score threshold changes signal quantity:
+Confidence:
+0.4
 
-50 = 102 signals
-60 = 98 signals
-70 = 92 signals
-80 = 78 signals
-100 = 29 signals
-120 = 6 signals
+ATR Stop:
+4.25
 
-Confidence filtering verified:
+ATR Target:
+5.0
 
-0.5 = 92 signals
-0.6 = 92 signals
-0.7 = 92 signals
-0.8 = 78 signals
-0.9 = 54 signals
-1.0 = 29 signals
-Optimiser Status
+Performance:
 
-Current file:
+Profit:
+$184112.72
+
+Win Rate:
+32.99%
+
+Profit Factor:
+2.37
+QQQ
+
+Configuration:
+
+Score Threshold:
+40
+
+Confidence:
+0.4
+
+ATR Stop:
+4.0
+
+ATR Target:
+5.5
+
+Performance:
+
+Profit:
+$185056.99
+
+Win Rate:
+40.81%
+
+Profit Factor:
+3.89
+Important Findings
+
+Atlas is consistently finding:
+
+Score:
+40-50
+
+Confidence:
+0.4-0.5
+
+ATR Stop:
+around 4
+
+ATR Target:
+around 5
+
+across different instruments.
+
+This indicates parameter stability.
+
+Current Files Modified Recently
+
+Important files:
+
+strategy/signal_generator.py
+
+backtesting/simulator.py
+
+backtesting/backtest_engine.py
 
 optimisation/optimizer.py
 
-Current search:
+research/dataset_cache.py
 
-768 combinations.
+backtesting/strategy_runner.py
+Current Task
 
-Parameters:
+NEXT DEVELOPMENT STEP:
 
-Score
-Confidence
-ATR Stop
-ATR Target
+Build Walk Forward Validation Engine.
 
-Currently running:
+Goal:
 
-python optimise.py SPY
+Prevent overfitting.
 
-Allow completion.
+Process:
 
-Current Backtest Findings
-
-SPY baseline:
-
-Starting Cash:
-100000
-
-Ending Equity:
-97343.44
-
-Net Profit:
--2656.56
-
-Trades:
-61
-
-Wins:
-23
-
-Losses:
-38
-
-Win Rate:
-37.7%
-
-Profit Factor:
-0.83
-
-Current conclusion:
-
-The optimisation framework was not the issue.
-
-The strategy itself needs improvement.
-
-Important Discoveries
-
-The Atlas scoring engine is heavily bullish.
-
-Example signals:
-
-110 1.0 BUY
-130 1.0 BUY
-130 1.0 BUY
-80  0.8 BUY
-90  0.9 BUY
-
-Future improvement areas:
-
-Short selling logic
-Market regime filtering
-Trend/range detection
-Better entry confirmation
-Next Development Steps
-Step 1
-
-Finish current optimiser run.
-
-Review:
-
-Best configuration
-Profit factor
-Win rate
-Trade count
-Step 2
-
-Save winning configuration:
+Split historical data
+Optimise training section
+Lock parameters
+Test unseen data
+Produce validation report
+Planned Validation Output
 
 Example:
 
-config/
-    optimized_strategy.json
+TRAINING
 
-Atlas live engine loads this automatically.
+Profit:
+PF:
+Win Rate:
 
-Step 3
 
-Improve strategy engine:
+VALIDATION
 
-Add:
+Profit:
+PF:
+Win Rate:
 
-Long/short symmetry
-Market regime filter
-Volatility filter
-Volume confirmation
-Step 4
 
-Multi-market testing
+FORWARD TEST
 
-Test:
+Profit:
+PF:
+Win Rate:
 
-SPY
-QQQ
-AAPL
-MSFT
-NVDA
-AMD
-META
-Step 5
 
-Paper trading validation
+VERDICT:
+PASS / FAIL
+Next Files Needed Tomorrow
 
-Before broker integration:
+Start by reviewing:
 
-Run live paper mode
-Track performance
-Compare against backtest
-User Workflow Preference
+optimisation/parallel_runner.py
+
+Then build:
+
+validation/
+
+    walk_forward.py
+Development Notes
 
 Important:
 
-When changing Atlas:
+Do not replace working optimisation logic.
 
-Always provide:
+Current optimisation results are considered the baseline.
 
-✅ complete replacement files
-✅ not partial snippets
-✅ include exact filename
-✅ include testing command afterwards
+Any future changes must be compared against:
 
-Backup
+SPY:
 
-GitHub repository:
+$184112.72
+PF 2.37
 
-Leeroytrades/atlas2.0
+QQQ:
 
-Before stopping work:
+$185056.99
+PF 3.89
 
-git add .
-git commit -m "Atlas milestone update"
-git push
-Resume Instructions
-
-When continuing:
-
-Check:
-
-Optimiser result
-PROJECT_STATUS.md
-README.md
-
-Then continue from:
-
-"Strategy improvement and adaptive optimisation."
-What I recommend next
-
-I wouldn't spend any more time tuning the current optimiser until we implement these improvements:
-
-✅ Download historical data only once.
-✅ Cache the data to disk.
-✅ Make the optimiser reuse the same dataframe.
-✅ Add multiprocessing so all CPU cores work simultaneously.
-✅ Save every optimisation run to a CSV/SQLite database so the best settings are remembered permanently.
-
-After that, Atlas won't need to repeat hundreds of identical downloads, and you'll build up a historical library of optimisation results instead of recomputing them every time.
+Atlas is currently at the point where the next priority is proving robustness, not increasing backtest profit.

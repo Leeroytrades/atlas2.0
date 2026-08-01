@@ -1,31 +1,28 @@
 """
-Atlas AI Trading Platform 3.0
+Atlas AI Trading Platform 3.2
 
 Strategy Optimiser
 
-Searches Atlas strategy parameters.
+Smart quantitative research engine.
 
-Optimises:
+Features:
 
-- Score threshold
-- Confidence threshold
-- ATR stop
-- ATR target
-
-Ranks using:
-
-- Profit
-- Profit factor
-- Win rate
-- Trade reliability
+- Cached datasets
+- Multiprocessing optimisation
+- SQLite experiment storage
+- Intelligent parameter search
+- Risk adjusted ranking
+- Reduced redundant testing
 """
 
 from __future__ import annotations
 
 
-from backtesting.engine import BacktestEngine
+from research.dataset_cache import DatasetCache
 
+from optimisation.parallel_runner import ParallelOptimizer
 
+from optimisation.results_database import OptimisationDatabase
 
 
 
@@ -44,9 +41,15 @@ class StrategyOptimizer:
 
         self.results = []
 
+        self.cache = DatasetCache()
+
+        self.database = OptimisationDatabase()
 
 
 
+    # =====================================================
+    # Ranking System
+    # =====================================================
 
     def calculate_score(
         self,
@@ -54,19 +57,35 @@ class StrategyOptimizer:
     ):
 
 
-        profit = result["net_profit"]
+        profit = result.get(
+            "net_profit",
+            0
+        )
 
-        win_rate = result["win_rate"]
 
-        profit_factor = result["profit_factor"]
+        win_rate = result.get(
+            "win_rate",
+            0
+        )
 
-        trades = result["total_trades"]
 
+        profit_factor = result.get(
+            "profit_factor",
+            0
+        )
+
+
+        trades = result.get(
+            "total_trades",
+            0
+        )
 
 
         score = 0
 
 
+
+        # Profit contribution
 
         score += (
 
@@ -82,11 +101,13 @@ class StrategyOptimizer:
 
             *
 
-            40
+            35
 
         )
 
 
+
+        # Win rate
 
         score += (
 
@@ -94,31 +115,42 @@ class StrategyOptimizer:
 
             *
 
-            0.20
+            0.25
 
         )
 
 
 
+        # Profit factor
+
         if isinstance(
-
             profit_factor,
-
-            (float, int)
-
+            (int,float)
         ):
 
-            score += min(
+            score += (
 
-                profit_factor,
+                min(
+                    profit_factor,
+                    5
+                )
 
-                5
+                *
 
-            ) * 10
+                20
+
+            )
 
 
 
-        if trades >= 50:
+        # Trade quantity reliability
+
+        if trades >= 100:
+
+            score += 15
+
+
+        elif trades >= 50:
 
             score += 10
 
@@ -135,31 +167,19 @@ class StrategyOptimizer:
 
 
         return round(
-
             score,
-
             2
-
         )
 
 
 
+    # =====================================================
+    # Smart Parameter Generator
+    # =====================================================
 
-
-    def optimise(
+    def generate_configurations(
         self,
-        symbol: str | None = None,
     ):
-
-
-        if symbol is not None:
-
-            self.symbol = symbol
-
-
-
-        self.results = []
-
 
 
         configurations = []
@@ -168,46 +188,45 @@ class StrategyOptimizer:
 
         scores = [
 
+            40,
             50,
             60,
             70,
             80,
-            90,
-            100,
-            110,
-            120,
 
         ]
+
 
 
         confidences = [
 
+            0.4,
             0.5,
             0.6,
             0.7,
-            0.8,
-            0.9,
-            1.0,
 
         ]
+
 
 
         atr_stops = [
 
-            1.5,
-            2.0,
-            2.5,
             3.0,
+            3.5,
+            3.75,
+            4.0,
+            4.25,
 
         ]
 
 
+
         atr_targets = [
 
-            3.0,
             4.0,
+            4.5,
             5.0,
-            6.0,
+            5.5,
 
         ]
 
@@ -221,6 +240,7 @@ class StrategyOptimizer:
 
                     for target in atr_targets:
 
+
                         configurations.append(
 
                             (
@@ -231,7 +251,7 @@ class StrategyOptimizer:
 
                                 stop,
 
-                                target
+                                target,
 
                             )
 
@@ -239,97 +259,117 @@ class StrategyOptimizer:
 
 
 
-        total = len(
+        return configurations
 
-            configurations
+
+
+    # =====================================================
+    # Run Optimisation
+    # =====================================================
+
+    def optimise(
+        self,
+        symbol: str | None = None,
+    ):
+
+
+        if symbol:
+
+            self.symbol = symbol
+
+
+
+        print()
+
+        print(
+            f"Loading dataset {self.symbol}"
+        )
+
+
+
+        dataset = self.cache.load(
+
+            self.symbol
 
         )
 
 
 
-        for number, config in enumerate(
+        print(
+            f"Dataset rows: {len(dataset)}"
+        )
+
+
+
+        configurations = self.generate_configurations()
+
+
+
+        print()
+
+        print(
+            f"Configurations: {len(configurations)}"
+        )
+
+
+
+        runner = ParallelOptimizer()
+
+
+
+        results = runner.run(
+
+            dataset,
+
+            self.symbol,
+
+            self.starting_cash,
 
             configurations,
 
-            start=1
-
-        ):
+        )
 
 
 
-            score_threshold, confidence, atr_stop, atr_target = config
+        self.results = []
 
 
 
-            print(
-
-                f"Testing {number}/{total}: "
-
-                f"Score {score_threshold} "
-
-                f"Confidence {confidence} "
-
-                f"ATR {atr_stop}/{atr_target}"
-
-            )
+        for result in results:
 
 
 
-            engine = BacktestEngine(
-
-                self.starting_cash
-
-            )
-
-
-
-            result = engine.run(
-
-                self.symbol,
-
-                score_threshold,
-
-                confidence,
-
-                atr_stop,
-
-                atr_target,
-
-            )
-
-
-
-            if result["total_trades"] < 10:
+            if result.get(
+                "total_trades",
+                0
+            ) < 10:
 
                 continue
 
 
 
-            ranking_score = self.calculate_score(
+            result["ranking_score"] = (
 
-                result
+                self.calculate_score(
+                    result
+                )
 
             )
 
 
 
+            self.database.save_result(
+
+                self.symbol,
+
+                result,
+
+            )
+
+
             self.results.append(
 
-                {
-
-                    "ranking_score": ranking_score,
-
-                    "score_threshold": score_threshold,
-
-                    "confidence": confidence,
-
-                    "atr_stop": atr_stop,
-
-                    "atr_target": atr_target,
-
-                    **result,
-
-                }
+                result
 
             )
 
@@ -339,9 +379,11 @@ class StrategyOptimizer:
 
             self.results,
 
-            key=lambda x: x["ranking_score"],
+            key=lambda x:
 
-            reverse=True
+                x["ranking_score"],
+
+            reverse=True,
 
         )
 
@@ -350,7 +392,9 @@ class StrategyOptimizer:
 
 
 
-
+    # =====================================================
+    # Display
+    # =====================================================
 
     def display(
         self,
@@ -361,15 +405,11 @@ class StrategyOptimizer:
         print()
 
         print(
-
             "Best Configurations"
-
         )
 
         print(
-
             "------------------"
-
         )
 
 
@@ -378,43 +418,60 @@ class StrategyOptimizer:
 
             self.results[:count],
 
-            start=1
+            start=1,
 
         ):
 
 
+
             print()
+
+
 
             print(
 
                 f"{index}. "
 
-                f"Atlas Score {result['ranking_score']}"
+                f"Profit ${result.get('net_profit',0):.2f} "
+
+                f"| Win Rate "
+
+                f"{result.get('win_rate',0)}% "
+
+                f"| PF "
+
+                f"{result.get('profit_factor',0)}"
 
             )
 
 
-            print(
-
-                f"   Profit ${result['net_profit']} "
-
-                f"| Win Rate {result['win_rate']}% "
-
-                f"| PF {result['profit_factor']}"
-
-            )
-
 
             print(
 
-                f"   Score {result['score_threshold']} "
+                "   "
 
-                f"| Confidence {result['confidence']} "
+                f"Score {result.get('score_threshold')} "
+
+                f"| Confidence "
+
+                f"{result.get('confidence')} "
 
                 f"| ATR "
 
-                f"{result['atr_stop']}/"
+                f"{result.get('atr_stop')}/"
 
-                f"{result['atr_target']}"
+                f"{result.get('atr_target')}"
+
+            )
+
+
+
+            print(
+
+                "   "
+
+                f"Ranking Score: "
+
+                f"{result.get('ranking_score')}"
 
             )

@@ -1,25 +1,23 @@
 """
-Atlas AI Trading Platform 3.0
+Atlas AI Trading Platform 3.2
 
 Backtesting Strategy Runner
 
-Configurable Atlas signal engine.
+Optimised signal engine.
 
-Applies:
+Improvements:
 
-- Score threshold filtering
-- Confidence filtering
-- Historical signal generation
+- Uses pre-calculated indicator datasets
+- Avoids rebuilding indicators every candle
+- Faster optimisation
+- Same signal logic
 """
 
 from __future__ import annotations
 
-
-from indicators.composite import build_indicator_set
+import pandas as pd
 
 from strategy.signal_generator import generate_scorecard
-
-
 
 
 
@@ -38,24 +36,21 @@ class StrategyRunner:
 
 
 
-
+    # ---------------------------------------------------------
+    # Analyse existing indicator dataframe
+    # ---------------------------------------------------------
 
     def analyse(
         self,
-        dataframe,
+        dataframe: pd.DataFrame,
     ):
-
-
-        indicators = build_indicator_set(
-
-            dataframe
-
-        )
 
 
         scorecard = generate_scorecard(
 
-            indicators
+            dataframe,
+
+            buy_threshold=self.score_threshold
 
         )
 
@@ -64,11 +59,13 @@ class StrategyRunner:
 
 
 
-
+    # ---------------------------------------------------------
+    # Generate historical signals
+    # ---------------------------------------------------------
 
     def run(
         self,
-        dataframe,
+        dataframe: pd.DataFrame,
         symbol="UNKNOWN",
     ):
 
@@ -76,6 +73,9 @@ class StrategyRunner:
         results = []
 
 
+
+        # Indicators already exist.
+        # No rebuilding on every candle.
 
         for index in range(
 
@@ -86,16 +86,15 @@ class StrategyRunner:
         ):
 
 
-
-            window = dataframe.iloc[
-
-                :index + 1
-
-            ].copy()
-
-
-
             try:
+
+
+                window = dataframe.iloc[
+
+                    :index + 1
+
+                ]
+
 
 
                 scorecard = self.analyse(
@@ -110,15 +109,9 @@ class StrategyRunner:
 
                 confidence = scorecard.confidence
 
-
-
                 bias = scorecard.bias
 
 
-
-                # ---------------------------------
-                # Apply optimisation parameters
-                # ---------------------------------
 
                 if bias == "BUY":
 

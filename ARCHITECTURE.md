@@ -1,737 +1,655 @@
-# Atlas AI Trading Assistant 3.0
+Atlas AI Trading Platform
+System Architecture Document
 
-# System Architecture
+Version: Atlas 3.x
+Purpose: Quantitative trading research, optimisation, backtesting and live trading foundation
 
-## Overview
+1. Project Overview
 
-Atlas is a modular algorithmic trading research and execution platform.
+Atlas is a modular AI-assisted quantitative trading platform designed to:
 
-The design separates:
+Collect market data
+Generate technical indicators
+Produce multi-factor trading signals
+Backtest historical strategies
+Optimise strategy parameters
+Validate strategies on unseen data
+Manage risk
+Track trades
+Prepare for future live trading integration
 
-* Data acquisition
-* Market analysis
-* Strategy generation
-* Risk management
-* Trade execution
-* Portfolio management
-* Persistence
-* Reporting
-* Backtesting
-* Optimisation
+The project has evolved from a simple trading assistant into a research platform capable of:
 
-The goal is to evolve Atlas from a trading assistant into a complete quantitative research and execution framework.
+Strategy discovery
+Parameter optimisation
+Walk-forward validation
+Quantitative ranking
+Portfolio management
+Broker integration readiness
+2. Core Design Philosophy
 
----
+Atlas follows these principles:
 
-# High Level Architecture
+Modular Architecture
 
-```text
-                    USER
-                     |
-                     |
-                 main.py
-                     |
-                     |
-              AtlasEngine
-                     |
-     --------------------------------
-     |              |               |
- Session        Services        Database
-     |              |               |
-     |              |               |
- Portfolio     Trading Logic     SQLite
- Watchlist     Monitoring
-               Execution
-               Analytics
+Each component has a single responsibility.
 
+Example:
 
 Market Data
-     |
-     |
+|
+v
 Indicators
-     |
-     |
-Strategy Engine
-     |
-     |
-Signal Generation
-     |
-     |
-Risk Manager
-     |
-     |
-Trade Creation
-     |
-     |
-Execution / Paper Trading
-     |
-     |
-Portfolio + Database
-```
+|
+v
+Scoring Engines
+|
+v
+Signal Generator
+|
+v
+Backtesting Engine
+|
+v
+Optimisation Engine
+|
+v
+Validation
 
----
+Research First
 
-# Core Application Layer
+No strategy should be trusted from a single backtest.
 
-## main.py
+The workflow is:
 
-Application entry point.
+Train on historical data
+Optimise parameters
+Validate on unseen data
+Reject overfitted results
+Only then consider live deployment
+Risk Before Reward
+
+A profitable strategy is not enough.
+
+Atlas evaluates:
+
+Profit
+Win rate
+Profit factor
+Trade frequency
+Drawdown
+Stability
+3. Current Project Structure
+Atlas/
+
+│
+├── main.py
+├── optimise.py
+├── validate.py
+│
+├── atlas/
+│   ├── engine.py
+│   ├── session.py
+│   ├── watchlist.py
+│   └── portfolio.py
+│
+├── data/
+│   ├── market_data.py
+│   └── cache/
+│
+├── indicators/
+│   └── composite.py
+│
+├── scoring/
+│   ├── trend_score.py
+│   ├── momentum_score.py
+│   ├── volatility_score.py
+│   └── volume_score.py
+│
+├── strategy/
+│   ├── signal_generator.py
+│
+├── backtesting/
+│   ├── engine.py
+│   ├── strategy_runner.py
+│   ├── simulator.py
+│   └── historical_data.py
+│
+├── optimisation/
+│   ├── optimizer.py
+│   ├── parallel_runner.py
+│   ├── results_database.py
+│   └── configurations.py
+│
+├── research/
+│   └── dataset_cache.py
+│
+├── risk/
+│   └── risk_manager.py
+│
+├── models/
+│   ├── trade.py
+│   └── scorecard.py
+│
+├── database/
+│   ├── database.py
+│   └── trades.py
+│
+└── display/
+    └── dashboard.py
+4. Data Pipeline
+Market Data Layer
+
+Location:
+
+data/market_data.py
 
 Responsibilities:
 
-* Start Atlas
-* Initialise engine
-* Run scheduler
-* Display output
+Download historical market data
+Normalise dataframe structure
+Provide OHLCV data
 
-Flow:
+Current development source:
 
-```text
-main.py
-    |
-    v
-AtlasEngine
-```
+Yahoo Finance through yfinance
 
----
+Required dataframe columns:
 
-# Atlas Core
+Open
+High
+Low
+Close
+Volume
+5. Dataset Cache System
 
-## atlas/
+Location:
 
-The central application package.
+research/dataset_cache.py
 
----
+Purpose:
 
-## atlas/engine.py
+Avoid repeatedly downloading and calculating indicators.
 
-The main orchestration layer.
+Workflow:
 
-Responsibilities:
+Market Data
 
-* Initialise services
-* Connect modules
-* Manage application lifecycle
+     |
 
-Current dependencies:
+Indicator Builder
 
-```text
-AtlasEngine
- |
- |-- Scanner Service
- |-- Trade Service
- |-- Portfolio Service
- |-- Monitoring Service
- |-- Performance Service
- |-- Paper Trading Service
- |-- Backtesting Service
-```
+     |
 
-The engine should coordinate modules.
+Parquet Dataset Cache
 
-Business logic should remain outside the engine.
+     |
 
----
+Backtesting / Optimisation
 
-## atlas/session.py
+Cached datasets currently support:
 
-Runtime session management.
+SPY
+Historical periods
+Multiple intervals
 
-Stores:
+Example:
 
-* active watchlist
-* current state
-* runtime information
+data/cache/SPY_2y_1d.parquet
+6. Indicator System
 
----
+Location:
 
-## atlas/watchlist.py
+indicators/composite.py
 
-Dynamic market list management.
-
-Supports:
-
-* loading symbols
-* adding symbols
-* removing symbols
-* saving changes
-
----
-
-## atlas/portfolio.py
-
-Portfolio state model.
-
-Tracks:
-
-* balance
-* positions
-* exposure
-* active trades
-
----
-
-# Data Layer
-
-## data/
-
-Responsible for external market information.
-
----
-
-## data/market_data.py
-
-Provides:
-
-* historical prices
-* candle data
-* market information
-
-Current provider:
-
-yfinance
-
-Future:
-
-* broker feeds
-* websocket data
-* live exchange feeds
-
----
-
-# Indicator System
-
-## indicators/
-
-Technical analysis engine.
-
----
-
-## indicators/composite.py
-
-Creates combined indicator sets.
+Responsible for building technical indicators.
 
 Current indicators:
 
-* EMA
-* ATR
-* Momentum
-* Volume analysis
+Trend
+EMA20
+EMA50
+SMA20
+SMA50
+ADX
+DI+
+DI-
+Momentum
+RSI
+MACD
+MACD Signal
+Stochastic
+Volume
+OBV
+CMF
+VWAP
+Volatility
+ATR
+7. Scoring Architecture
 
-Output feeds:
+Location:
 
-```text
-Indicators
-    |
-    v
-Strategy Engine
-```
+scoring/
 
----
+Atlas uses independent scoring engines.
 
-# Strategy Layer
+Trend Score
 
-## strategy/
+File:
 
-Responsible for trading decisions.
+trend_score.py
 
----
+Evaluates:
 
-## strategy/signal_generator.py
+EMA alignment
+SMA alignment
+Price position
+ADX strength
+Directional movement
 
-Creates Atlas scorecards.
+Maximum contribution:
 
-Outputs:
+70 points
 
-* score
-* bias
-* confidence
-* signal
+Momentum Score
 
-Example:
+File:
 
-```text
-Score:
-90
+momentum_score.py
 
-Bias:
-BUY
+Evaluates:
 
-Confidence:
-0.9
-```
+RSI
+MACD
+Stochastic
+Volume Score
 
----
+File:
 
-# Risk Management
+volume_score.py
 
-## risk/
+Evaluates:
 
-Controls trade safety.
+OBV trend
+Money flow
+VWAP position
+Volatility Score
 
----
+File:
 
-## risk/risk_manager.py
+volatility_score.py
 
-Responsible for:
+Evaluates:
 
-* position sizing
-* stop calculation
-* reward calculation
-* risk percentage
+ATR conditions
+Market movement suitability
+8. Signal Generator
 
-Current model:
+Location:
 
-ATR based risk.
+strategy/signal_generator.py
 
----
+Purpose:
 
-## risk/trade.py
-
-Trade object.
-
-Stores:
-
-* symbol
-* direction
-* entry
-* stop
-* target
-* quantity
-* risk
-* reward
-* confidence
-* lifecycle state
-
----
-
-# Service Layer
-
-## services/
-
-Contains application business services.
-
----
-
-## scanner_service.py
-
-Runs:
-
-```text
-Market Data
-      |
-Indicators
-      |
-Strategy
-      |
-Signals
-```
-
----
-
-## trade_service.py
-
-Responsible for:
-
-* opening trades
-* closing trades
-* trade lifecycle
-
----
-
-## paper_trading_service.py
-
-Simulates execution.
-
-Used before real broker connection.
-
----
-
-## execution_service.py
-
-Handles:
-
-* broker positions
-* monitoring
-* execution state
-
----
-
-## monitoring_service.py
-
-Monitors:
-
-* active positions
-* stop loss
-* take profit
-* alerts
-
----
-
-## performance_service.py
-
-Calculates:
-
-* returns
-* win rate
-* drawdown
-* profitability
-
----
-
-# Database Layer
-
-## database/
-
-Persistence system.
-
-Uses:
-
-SQLite
-
----
-
-## database/database.py
-
-Database connection.
-
----
-
-## database/trades.py
-
-Trade persistence.
-
-Stores:
-
-* entries
-* exits
-* profit/loss
-* status
-
-Database file:
-
-```text
-atlas.db
-```
-
----
-
-# Alert System
-
-## alerts/
-
-Notification framework.
-
-Current:
-
-Console alerts
-
-Future:
-
-* Email
-* Telegram
-* Mobile notifications
-* Discord
-
----
-
-# Backtesting System
-
-## backtesting/
-
-Historical strategy testing framework.
-
----
-
-## historical_data.py
-
-Loads historical candles.
-
----
-
-## strategy_runner.py
-
-Runs Atlas strategy over historical data.
-
-Flow:
-
-```text
-Historical Candle
-        |
-Indicators
-        |
-Scorecard
-        |
-Signal
-```
-
-Supports:
-
-* score threshold
-* confidence threshold
-
----
-
-## simulator.py
-
-Trade simulator.
-
-Features:
-
-* ATR stops
-* ATR targets
-* trailing stops
-* slippage
-* commission
-* equity tracking
-
----
-
-## engine.py
-
-Backtest controller.
-
-Handles:
-
-* signals
-* trade creation
-* lifecycle
-
----
-
-## analytics.py
-
-Ranks performance.
-
-Measures:
-
-* profit
-* win rate
-* reliability
-
----
-
-## multi_engine.py
-
-Future multi-symbol testing.
-
----
-
-# Optimisation System
-
-## optimisation/
-
-Strategy discovery framework.
-
----
-
-## optimizer.py
-
-Searches parameter combinations.
-
-Current parameters:
-
-```text
-Score threshold
-
-Confidence
-
-ATR Stop
-
-ATR Target
-```
-
-Current search:
-
-768 combinations.
+Convert indicator scores into trading decisions.
 
 Output:
 
-Best performing configurations.
+BUY
+SELL
+HOLD
+
+Signal confirmation currently uses:
+
+Total score threshold
+ADX confirmation
+RSI filter
+Volume confirmation
+Volatility confirmation
+EMA20 pullback filter
+9. Scorecard Model
+
+Location:
+
+models/scorecard.py
+
+Stores:
+
+trend
+momentum
+volatility
+volume
+
+total_score
+
+signal
+
+confidence
+
+Confidence:
+
+abs(total_score) / 100
+10. Backtesting Engine
+
+Location:
+
+backtesting/
+Backtest Engine
+
+Responsible for:
+
+Running historical strategies
+Creating trades
+Simulating exits
+Returning performance
+11. Strategy Runner
+
+Location:
+
+backtesting/strategy_runner.py
+
+Responsibilities:
+
+Walk through historical candles
+Generate rolling indicators
+Create historical signals
+Apply optimisation thresholds
+
+Important:
+
+The runner was improved to avoid rebuilding unnecessary calculations.
+
+Current architecture:
+
+Historical Candle
+
+       |
+
+Rolling Window
+
+       |
+
+Signal Generator
+
+       |
+
+Trade Signal
+12. Trade Simulator
+
+Location:
+
+backtesting/simulator.py
+
+Current features:
+
+Long trades
+Short trades
+ATR stop loss
+ATR targets
+Breakeven protection
+Maximum holding period
+Commission
+Slippage
+Equity tracking
+
+Current optimisation discovery:
+
+Strong results are appearing around:
+
+ATR Stop:
+3.5 - 4.25
+
+ATR Target:
+5.0 - 5.5
+13. Optimisation Engine
+
+Location:
+
+optimisation/
+
+Purpose:
+
+Automatically search strategy parameters.
+
+Current parameters tested:
+
+Score threshold
+
+Example:
+
+40
+50
+60
+70
+Confidence
+
+Example:
+
+0.4
+0.5
+0.6
+ATR Stop
+
+Example:
+
+3.0
+3.5
+4.0
+4.25
+ATR Target
+
+Example:
+
+4.0
+4.5
+5.0
+5.5
+14. Current Optimisation Results
+
+Latest research:
+
+Dataset:
+
+SPY
+2514 rows
+
+Best discovered configuration:
+
+Score:
+40
+
+Confidence:
+0.4
+
+ATR Stop:
+4.0
+
+ATR Target:
+5.5
+
+Performance:
+
+Profit:
+$185,056.99
+
+Win Rate:
+40.81%
+
+Profit Factor:
+3.89
+
+Other strong configurations:
+
+ATR 3.75 / 5.5
+
+ATR 4.25 / 5.5
+15. Validation System
+
+Purpose:
+
+Prevent overfitting.
+
+Workflow:
+
+Training Data
+
+        |
+
+Optimisation
+
+        |
+
+Best Parameters
+
+        |
+
+Unseen Validation Data
+
+        |
+
+PASS / FAIL
+
+Important:
+
+Earlier validation failures showed:
+
+High training profit does not guarantee robustness.
+
+Future improvements required:
+
+Walk forward testing
+Multiple symbols
+Market regime testing
+Monte Carlo testing
+16. Risk Management
+
+Location:
+
+risk/
+
+Responsibilities:
+
+Position sizing
+Stop placement
+Risk percentage calculation
 
 Future:
 
-* genetic optimisation
-* machine learning optimisation
-* reinforcement learning
+Portfolio exposure
+Correlation management
+Volatility based sizing
+17. Database System
 
----
+Location:
 
-# Data Flow
+database/
 
-## Live Trading Flow
+SQLite currently stores:
 
-```text
-Market Data
-     |
-     v
-Indicators
-     |
-     v
-Strategy Score
-     |
-     v
-Signal
-     |
-     v
-Risk Manager
-     |
-     v
-Trade
-     |
-     v
-Execution
-     |
-     v
-Portfolio
-     |
-     v
-Database
-```
+Trades:
 
----
+symbol
+direction
+entry
+stop_loss
+take_profit
+quantity
+risk
+reward
+confidence
+status
+profit_loss
 
-## Backtesting Flow
+Optimisation database stores:
 
-```text
-Historical Data
-        |
-        v
-Strategy Runner
-        |
-        v
-Signals
-        |
-        v
+Parameters
+Results
+Rankings
+18. Current Development Stage
+
+Completed:
+
+YES
+
+Market data
+Indicator system
+Scoring engine
+Signal generator
+Backtesting
 Simulator
-        |
-        v
-Analytics
-        |
-        v
-Optimiser
-```
+Optimisation
+Dataset caching
+SQLite storage
 
----
+Currently working on:
 
-# Design Principles
+Robust validation
+Preventing overfitting
+Strategy selection
+Live trading preparation
+19. Immediate Next Development Priorities
 
-Atlas follows:
+Priority 1:
 
-## Separation of Responsibility
+Improve validation
 
-Each module should have one purpose.
+Add:
 
-Example:
+Walk forward testing
+Multiple market periods
+Multiple symbols
 
-Bad:
+Priority 2:
 
-```text
-engine.py calculates indicators
-```
+Improve ranking model
 
-Good:
+Include:
 
-```text
-indicator module calculates indicators
-engine coordinates modules
-```
+Drawdown
+Stability
+Sharpe ratio
+Sortino ratio
 
----
+Priority 3:
 
-## Replaceability
-
-Components should be replaceable.
+Create production strategy profile
 
 Example:
 
-Current:
+ATLAS_PRODUCTION_PROFILE
 
-```text
-Yahoo Finance
-```
+Score:
+40
 
-Future:
+Confidence:
+0.5
 
-```text
-Broker API
-Exchange Feed
-```
+ATR:
+4.0 / 5.5
 
-without rewriting the strategy engine.
+Priority 4:
 
----
+Prepare live trading layer
 
-## Testing First
+Possible integrations:
 
-Every major feature should have:
+Interactive Brokers
+Alpaca
+Tradovate
+NinjaTrader
+20. Important Development Notes
 
-* isolated test
-* backtest validation
-* live paper validation
+When modifying Atlas:
 
----
+Always provide complete replacement files
+Avoid partial snippets
+Maintain modular structure
+Do not remove working functionality
+Test after each major change
+Preserve cached datasets
 
-# Current Architecture Status
+Current objective:
 
-## Complete
+Create a professional quantitative trading platform capable of discovering, validating and deploying robust strategies.
 
-✅ Modular structure
-✅ Service layer
-✅ Database layer
-✅ Risk system
-✅ Paper trading
-✅ Backtesting
-✅ Optimisation framework
-
----
-
-# Future Architecture Goals
-
-## Phase 1
-
-Strategy improvement:
-
-* better entries
-* short trades
-* market regimes
-
-## Phase 2
-
-Intelligence:
-
-* AI explanations
-* adaptive parameters
-* self optimisation
-
-## Phase 3
-
-Execution:
-
-* broker integration
-* live feeds
-* automated trading
-
-## Phase 4
-
-Platform:
-
-* web dashboard
-* cloud deployment
-* multi-user support
-
----
-
-# Development Rule
-
-Atlas should grow by adding modules, not by making existing files larger.
-
-Keep:
-
-* engine as coordinator
-* services as logic
-* models as data
-* database as storage
-* strategies as independent components
-
-This keeps Atlas scalable.
+END ARCHITECTURE DOCUMENT

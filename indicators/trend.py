@@ -1,20 +1,20 @@
 """
-Atlas AI Trading Assistant
+Atlas AI Trading Assistant 3.0
 
 Trend Indicators
 
-This module calculates trend-following technical indicators and appends them
-to a pandas DataFrame.
+Responsible for:
 
-Indicators
-----------
 - SMA 20
 - SMA 50
 - EMA 20
 - EMA 50
 - ADX
-- +DI
-- -DI
+- DI_PLUS
+- DI_MINUS
+
+This module is the single source of truth for
+trend-related indicators.
 """
 
 from __future__ import annotations
@@ -30,59 +30,52 @@ from ta.trend import (
 
 def add_trend_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add trend indicators to a copy of the supplied DataFrame.
+    Adds trend indicators directly to the supplied DataFrame.
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        OHLCV DataFrame.
-
-    Returns
-    -------
-    pd.DataFrame
-        DataFrame containing the original data plus trend indicators.
+    Notes
+    -----
+    Atlas 3.0 modifies the DataFrame in-place to avoid
+    unnecessary DataFrame copies during research,
+    optimisation and backtesting.
     """
 
-    data = df.copy()
+    # ---------------------------------------------------------
+    # Moving Averages
+    # ---------------------------------------------------------
 
-    # -----------------------------
-    # Simple Moving Averages
-    # -----------------------------
-    data["SMA_20"] = SMAIndicator(
-        close=data["Close"],
+    df["SMA_20"] = SMAIndicator(
+        close=df["Close"],
         window=20,
     ).sma_indicator()
 
-    data["SMA_50"] = SMAIndicator(
-        close=data["Close"],
+    df["SMA_50"] = SMAIndicator(
+        close=df["Close"],
         window=50,
     ).sma_indicator()
 
-    # -----------------------------
-    # Exponential Moving Averages
-    # -----------------------------
-    data["EMA_20"] = EMAIndicator(
-        close=data["Close"],
+    df["EMA_20"] = EMAIndicator(
+        close=df["Close"],
         window=20,
     ).ema_indicator()
 
-    data["EMA_50"] = EMAIndicator(
-        close=data["Close"],
+    df["EMA_50"] = EMAIndicator(
+        close=df["Close"],
         window=50,
     ).ema_indicator()
 
-    # -----------------------------
-    # Average Directional Index
-    # -----------------------------
+    # ---------------------------------------------------------
+    # ADX + Directional Movement
+    # ---------------------------------------------------------
+
     adx = ADXIndicator(
-        high=data["High"],
-        low=data["Low"],
-        close=data["Close"],
+        high=df["High"],
+        low=df["Low"],
+        close=df["Close"],
         window=14,
     )
 
-    data["ADX"] = adx.adx()
-    data["DI_PLUS"] = adx.adx_pos()
-    data["DI_MINUS"] = adx.adx_neg()
+    df["ADX"] = adx.adx()
+    df["DI_PLUS"] = adx.adx_pos()
+    df["DI_MINUS"] = adx.adx_neg()
 
-    return data
+    return df

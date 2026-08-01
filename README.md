@@ -1,214 +1,353 @@
-Atlas AI Trading Assistant 3.0
-Overview
+Atlas AI Trading Platform
+Version: Atlas 3.2
 
-Atlas AI Trading Assistant is a modular algorithmic trading research platform designed for:
+A modular quantitative trading research platform designed for:
 
-Market scanning
-Technical analysis
+Historical strategy testing
+Parameter optimisation
+Risk analysis
 Signal generation
-Risk management
-Paper trading
-Trade monitoring
-Performance analytics
-Historical backtesting
-Strategy optimisation
+Future live trading integration
 
-The project is built in Python with a clean modular architecture designed to evolve toward professional-grade trading infrastructure.
+Atlas has evolved from a simple scanner into a research engine capable of testing trading hypotheses against historical market data.
 
-Current Version
-Atlas 3.0
+Project Vision
 
-Current development focus:
+Atlas aims to become a professional-grade trading research assistant capable of:
 
-Backtesting engine
-Strategy optimisation
-Multi-market analysis
-Automated configuration discovery
-Technology Stack
-Language
+Finding statistically strong trading configurations
+Testing strategies across multiple markets
+Avoiding overfitting through validation
+Managing risk dynamically
+Producing explainable trading decisions
+Eventually supporting live execution
+Current Architecture
+Atlas AI Trading Platform
 
-Python 3.12
+                main.py
+                   |
+                   |
+             Strategy Runner
+                   |
+                   |
+          Signal Generation Engine
+                   |
+        +----------+----------+
+        |                     |
+     Indicators            Scoring
+        |                     |
+        +----------+----------+
+                   |
+             Trade Creation
+                   |
+             Risk Management
+                   |
+             Backtest Engine
+                   |
+             Trade Simulator
+                   |
+             Optimisation Engine
+                   |
+             Results Database
+Main Components
+data/
 
-Environment
+Handles market data collection.
 
-Windows 11
+Responsibilities:
 
-Virtual environment:
+Download historical prices
+Provide OHLCV datasets
+Interface with external data sources
+indicators/
 
-.venv
-Main Libraries
-pandas
-numpy
-yfinance
-ta
-rich
-pytest
-Project Architecture
-Atlas2.0/
+Responsible for technical indicator generation.
 
-│
-├── main.py
-├── backtest.py
-├── optimise.py
-│
-├── atlas/
-│   ├── engine.py
-│   ├── session.py
-│   ├── portfolio.py
-│   └── watchlist.py
-│
-├── data/
-│   └── market_data.py
-│
-├── indicators/
-│   └── composite.py
-│
-├── strategy/
-│   └── signal_generator.py
-│
-├── risk/
-│   ├── risk_manager.py
-│   └── trade.py
-│
-├── services/
-│   ├── scanner_service.py
-│   ├── trade_service.py
-│   ├── paper_trading_service.py
-│   ├── execution_service.py
-│   ├── monitoring_service.py
-│   └── performance_service.py
-│
-├── database/
-│   ├── database.py
-│   └── trades.py
-│
-├── backtesting/
-│   ├── engine.py
-│   ├── simulator.py
-│   ├── strategy_runner.py
-│   ├── historical_data.py
-│   ├── analytics.py
-│   ├── reports.py
-│   └── multi_engine.py
-│
-└── optimisation/
-    └── optimizer.py
-Completed Features
-Market Intelligence
+Current indicators include:
 
-Completed:
+EMA
+SMA
+RSI
+MACD
+Stochastic
+ATR
+ADX
+DI+
+DI-
+OBV
+CMF
+VWAP
 
-Market data retrieval
-Indicator generation
-Composite scoring
-Bull/bear bias detection
-Confidence scoring
-Trading System
+Indicators are generated through:
 
-Completed:
+indicators/composite.py
+Signal Engine
 
-Trade model
-Position sizing
-Risk calculations
-Stop loss handling
-Take profit handling
-Portfolio tracking
-Paper trading workflow
-Database
+Location:
 
-Completed:
+strategy/signal_generator.py
 
-SQLite persistence.
+Purpose:
 
-Tracks:
+Creates trading decisions from market conditions.
 
-Symbol
-Direction
-Entry
-Stop loss
-Take profit
-Quantity
-Risk
-Reward
-Confidence
-Open/closed status
-Profit/loss
-Dashboard
+Current filters:
 
-Completed:
+Trend confirmation
+Momentum confirmation
+Volatility confirmation
+Volume confirmation
+EMA20 pullback filter
 
-Rich terminal dashboard showing:
+Signals:
 
-Market scanner
-Portfolio
-Performance analytics
-Equity statistics
-Backtesting System
+BUY
+SELL
+HOLD
 
-Completed:
+Supports optimiser-controlled:
 
-Historical simulation engine.
+Score thresholds
+Confidence thresholds
+Scoring System
 
-Features:
+Location:
 
-Historical candle replay
-Signal generation
-Trade lifecycle simulation
-ATR stops
+scoring/
+
+Modules:
+
+trend_score.py
+momentum_score.py
+volatility_score.py
+volume_score.py
+
+The scorecard combines:
+
+Trend
++
+Momentum
++
+Volatility
++
+Volume
+=
+Total Score
+Backtesting Engine
+
+Location:
+
+backtesting/
+
+Components:
+
+Backtest Engine
+
+Responsible for:
+
+Running historical tests
+Applying configurations
+Creating trades
+Managing lifecycle
+Strategy Runner
+
+Responsible for:
+
+Walking through historical candles
+Generating signals
+Applying score filters
+Simulator
+
+Responsible for:
+
+ATR stop losses
 ATR targets
-Trailing stops
-Commission simulation
-Slippage simulation
+Breakeven protection
+Holding periods
+Commission
+Slippage
 Equity tracking
-Strategy Optimisation
+Dataset Cache
 
-Current development:
+Location:
 
-Atlas Optimiser.
+research/dataset_cache.py
 
-Current search:
+Purpose:
 
-Score Threshold:
-50-120
+Avoid repeated downloads and indicator calculations.
+
+Workflow:
+
+Market Data
+
+     |
+
+Indicators
+
+     |
+
+Parquet Cache
+
+     |
+
+Optimisation
+Optimisation Engine
+
+Location:
+
+optimisation/
+
+Current features:
+
+Parallel processing
+Configuration testing
+Result ranking
+SQLite storage
+Risk adjusted scoring
+
+Current optimisation variables:
+
+Score Threshold
+
+Confidence Threshold
+
+ATR Stop
+
+ATR Target
+Current Optimisation Results
+SPY
+
+Best configuration:
+
+Score:
+40
 
 Confidence:
-0.5-1.0
+0.4
 
 ATR Stop:
-1.5-3.0
+4.25
 
 ATR Target:
-3.0-6.0
+5.0
 
-Total combinations:
+Results:
 
-768
+Profit:
+$184112.72
 
-The optimiser ranks configurations using:
+Win Rate:
+32.99%
 
-Profit
-Profit factor
-Win rate
-Trade reliability
-Current Development Goal
+Profit Factor:
+2.37
+QQQ
 
-Transform Atlas from a functional trading framework into an adaptive strategy research platform.
+Best configuration:
 
-Next priorities:
+Score:
+40
 
-Complete optimisation system
-Save winning configurations
-Multi-symbol optimisation
+Confidence:
+0.4
+
+ATR Stop:
+4.0
+
+ATR Target:
+5.5
+
+Results:
+
+Profit:
+$185056.99
+
+Win Rate:
+40.81%
+
+Profit Factor:
+3.89
+Important Discovery
+
+Across multiple symbols Atlas is finding similar parameter regions:
+
+Score:
+40-50
+
+Confidence:
+0.4-0.5
+
+ATR Stop:
+3.75-4.25
+
+ATR Target:
+5.0-5.5
+
+This suggests the strategy is finding a stable behaviour pattern rather than a single overfit solution.
+
+Current Development Stage
+
+Atlas is currently moving from:
+
+Optimisation
+
+into:
+
+Validation
+
+The next major feature is:
+
+Walk Forward Testing
+
+Planned:
+
+Historical Data
+
+        |
+
+Training Period
+
+        |
+
+Optimisation
+
+        |
+
+Locked Parameters
+
+        |
+
+Unseen Validation
+
+        |
+
+Forward Test
+Future Roadmap
+Phase 1 - Validation
+Walk forward testing
+Monte Carlo trade analysis
+Multi-symbol validation
+Drawdown analysis
+Phase 2 - Intelligence
+AI signal explanations
+Trade journaling
 Market regime detection
-Strategy improvement
-Live paper trading validation
-Broker integration readiness
+Confidence calibration
+Phase 3 - Live Trading
+Real-time monitoring
+Alerts
+Broker integration
+Automated execution
 Development Rules
 
 When modifying Atlas:
 
-Keep modules independent
-Use complete replacement files
-Avoid partial patches
-Test after each milestone
-Commit working versions to GitHub
+Preserve existing working behaviour
+Optimise speed without changing results
+Validate before adding complexity
+Prefer modular components
+Keep research reproducible
+Current Status
+
+Atlas 3.2 is stable and ready for validation development.
