@@ -1,205 +1,600 @@
-Atlas AI Trading Platform
-Project Status
+# Atlas AI Trading Platform 3.3
 
-Date:
-August 2026
+## Project Status & Architecture Handover
 
-Version:
-Atlas 3.2
+**Project:** Atlas AI Trading Platform
+**Current Version:** 3.3
+**Repository Branch:** `refactor/atlas-2.1`
+**Latest Commit:** `93884c0 - Atlas 3.3 complete - optimisation and walk forward validation`
+**Environment:** Windows 11 / Python 3.12 / Virtual Environment `.venv`
 
-Completed Features
-Core System
+---
 
-✅ Modular architecture
-✅ Market data pipeline
-✅ Indicator engine
-✅ Scorecard system
-✅ Signal generator
-✅ Risk management
+# 1. Project Vision
+
+Atlas is a modular AI-assisted trading research and execution platform.
+
+The long-term goal is to create a complete trading intelligence system capable of:
+
+* Market scanning
+* Technical analysis
+* Signal generation
+* Risk management
+* Portfolio tracking
+* Trade execution simulation
+* Backtesting
+* Strategy optimisation
+* Walk-forward validation
+* Market regime detection
+* AI-generated explanations
+* Live market monitoring
+
+Current focus is research quality:
+
+* Avoid overfitting
+* Discover robust parameters
+* Validate strategies on unseen data
+* Build institutional-style research workflow
+
+---
+
+# 2. Current Development Stage
+
+## COMPLETED
+
+### Atlas Core Engine
+
+✅ Market data loading
+✅ Indicator generation
+✅ Composite scoring system
+✅ Signal generation
 ✅ Trade creation
-✅ Backtesting engine
+✅ Risk management
+✅ Position sizing
+✅ Portfolio tracking
+✅ SQLite persistence
+✅ Dashboard output
 
-Research Engine
+---
 
-Completed:
+## Completed Research Engine
 
-✅ Historical dataset cache
-✅ Parquet datasets
-✅ Parallel optimisation
-✅ Configuration testing
-✅ SQLite optimisation storage
-✅ Ranking engine
+### Optimisation System
 
-Performance Improvements
+Location:
 
-Completed:
+```
+optimisation/
+```
 
-✅ Cached datasets
-✅ Removed unnecessary repeated processing
-✅ Optimised signal generation
-✅ Faster optimisation cycles
+Files:
 
-Current Best Results
-SPY
+```
+optimizer.py
+parallel_runner.py
+worker.py
+results.py
+results_database.py
+results.db
+```
 
-Configuration:
+Capabilities:
 
-Score Threshold:
+* Generates parameter combinations
+* Runs parallel optimisation
+* Scores configurations
+* Saves results
+* Ranks strategies
+
+Current tested optimisation:
+
+400 configurations
+
+Parameters:
+
+```
+Score threshold
+Confidence threshold
+ATR stop multiplier
+ATR target multiplier
+```
+
+Best discovered configuration:
+
+```
+Score:
 40
 
 Confidence:
-0.4
+0.4-0.5
 
 ATR Stop:
 4.25
 
 ATR Target:
 5.0
+```
 
-Performance:
+Example optimisation result:
 
-Profit:
-$184112.72
+```
+Starting Cash:
+100000
 
-Win Rate:
-32.99%
-
-Profit Factor:
-2.37
-QQQ
-
-Configuration:
-
-Score Threshold:
-40
-
-Confidence:
-0.4
-
-ATR Stop:
-4.0
-
-ATR Target:
-5.5
-
-Performance:
+Ending Equity:
+319840.94
 
 Profit:
-$185056.99
+219840.94
+
+Trades:
+412
 
 Win Rate:
-40.81%
+34.95%
 
 Profit Factor:
-3.89
-Important Findings
+2.59
+```
 
-Atlas is consistently finding:
+Important:
+This is an optimisation result only.
+It is NOT considered validated until walk-forward testing passes.
 
-Score:
-40-50
+---
 
-Confidence:
-0.4-0.5
+# 3. Walk Forward Validation Engine
 
-ATR Stop:
-around 4
+Location:
 
-ATR Target:
-around 5
+```
+validation/
+```
 
-across different instruments.
+Files:
 
-This indicates parameter stability.
+```
+walk_forward.py
+window.py
+metrics.py
+report.py
+robustness.py
+settings.py
+```
 
-Current Files Modified Recently
-
-Important files:
-
-strategy/signal_generator.py
-
-backtesting/simulator.py
-
-backtesting/backtest_engine.py
-
-optimisation/optimizer.py
-
-research/dataset_cache.py
-
-backtesting/strategy_runner.py
-Current Task
-
-NEXT DEVELOPMENT STEP:
-
-Build Walk Forward Validation Engine.
-
-Goal:
+Purpose:
 
 Prevent overfitting.
 
-Process:
+Workflow:
 
-Split historical data
-Optimise training section
-Lock parameters
-Test unseen data
-Produce validation report
-Planned Validation Output
+```
+Historical Data
+
+        ↓
+
+Training Window
+
+        ↓
+
+Optimisation
+
+        ↓
+
+Lock Parameters
+
+        ↓
+
+Unseen Validation Window
+
+        ↓
+
+Performance Evaluation
+
+        ↓
+
+PASS / FAIL
+```
+
+---
+
+## Current Walk Forward Configuration
 
 Example:
 
-TRAINING
+Training:
 
+```
+500 candles
+```
+
+Validation:
+
+```
+100 candles
+```
+
+Step:
+
+```
+100 candles
+```
+
+Expanding:
+
+```
+True
+```
+
+---
+
+# 4. Current Validation Results
+
+Current status:
+
+```
+PASS: 0 / 10
+```
+
+Validation is currently FAILING.
+
+This is expected and is the next important development area.
+
+Observed issue:
+
+Optimisation performs extremely well:
+
+Example:
+
+```
+Training profit:
+90641
+
+Profit Factor:
+12.24
+```
+
+But unseen validation:
+
+```
+0 trades
+or
+negative results
+```
+
+Meaning:
+
+The strategy is likely overfitting training data.
+
+---
+
+# 5. Current Known Problems
+
+## Problem 1
+
+Optimiser finds unrealistic high-performing configurations.
+
+Example:
+
+```
 Profit:
+$219k
+
 PF:
-Win Rate:
+2.59
+```
 
+but walk-forward fails.
 
-VALIDATION
+Likely causes:
 
-Profit:
-PF:
-Win Rate:
+* Too many parameters
+* Weak validation rules
+* Insufficient market regimes
+* Strategy adapts too much to historical data
 
+---
 
-FORWARD TEST
+## Problem 2
 
-Profit:
-PF:
-Win Rate:
+Some validation windows produce:
 
+```
+total_trades = 0
+```
 
-VERDICT:
-PASS / FAIL
-Next Files Needed Tomorrow
+Need investigation.
 
-Start by reviewing:
+Possible causes:
 
-optimisation/parallel_runner.py
+* Regime filter too restrictive
+* Confidence threshold too high
+* Score requirements too strict
+* Signal generator behaves differently on unseen data
 
-Then build:
+---
 
-validation/
+## Problem 3
 
-    walk_forward.py
-Development Notes
+Training metrics appear suspicious.
 
-Important:
+Example:
 
-Do not replace working optimisation logic.
+```
+winning_trades = 0
+losing_trades = 0
+win_rate = 64%
+```
 
-Current optimisation results are considered the baseline.
+Needs checking.
 
-Any future changes must be compared against:
+Possible issue:
 
-SPY:
+ValidationMetrics mapping may not correctly read BacktestEngine results.
 
-$184112.72
-PF 2.37
+---
 
-QQQ:
+# 6. Current Architecture
 
-$185056.99
-PF 3.89
+```
+Atlas/
 
-Atlas is currently at the point where the next priority is proving robustness, not increasing backtest profit.
+│
+├── main.py
+│
+├── atlas/
+│   ├── engine.py
+│   ├── session.py
+│   ├── portfolio.py
+│   └── watchlist.py
+│
+├── data/
+│   └── market_data.py
+│
+├── indicators/
+│   ├── composite.py
+│   ├── trend.py
+│   ├── momentum.py
+│   ├── volatility.py
+│   └── volume.py
+│
+├── strategy/
+│   └── signal_generator.py
+│
+├── models/
+│   └── scorecard.py
+│
+├── risk/
+│   ├── risk_manager.py
+│   └── trade.py
+│
+├── backtesting/
+│   └── engine.py
+│
+├── optimisation/
+│   ├── optimizer.py
+│   ├── parallel_runner.py
+│   ├── worker.py
+│   ├── results.py
+│   └── results_database.py
+│
+├── validation/
+│   ├── walk_forward.py
+│   ├── window.py
+│   ├── metrics.py
+│   ├── report.py
+│   └── robustness.py
+│
+├── research/
+│   ├── regime_detector.py
+│   ├── dataset_builder.py
+│   ├── dataset_cache.py
+│   ├── score_builder.py
+│   └── walk_forward.py
+│
+└── database/
+    ├── database.py
+    ├── trades.py
+    ├── portfolio.py
+    ├── equity.py
+    └── validation.py
+
+```
+
+---
+
+# 7. Database
+
+Current database:
+
+```
+atlas.db
+```
+
+Location:
+
+```
+C:\Users\Admin\Atlas\atlas.db
+```
+
+Used for:
+
+* Trades
+* Equity history
+* Validation results
+* Portfolio data
+
+Optimisation database:
+
+```
+optimisation/results.db
+```
+
+Stores:
+
+* Tested configurations
+* Performance metrics
+* Rankings
+
+---
+
+# 8. Current Technology Stack
+
+Python:
+
+```
+3.12
+```
+
+Libraries:
+
+```
+pandas
+numpy
+yfinance
+ta
+rich
+pytest
+pyarrow
+```
+
+Environment:
+
+```
+.venv
+```
+
+---
+
+# 9. Current Git Status
+
+Branch:
+
+```
+refactor/atlas-2.1
+```
+
+Latest commits:
+
+```
+93884c0
+Atlas 3.3 complete - optimisation and walk forward validation
+
+53f74a7
+Atlas 3.1 research engine milestone
+```
+
+Working tree:
+
+```
+clean
+```
+
+---
+
+# 10. Cleanup Completed
+
+Removed:
+
+* Python cache files
+* `.pyc` files
+
+Checked:
+
+```
+*.log
+*.bak
+```
+
+No unnecessary files found.
+
+---
+
+# 11. Immediate Next Development Tasks
+
+Priority order:
+
+## 1. Fix Walk Forward Validation
+
+Investigate:
+
+* Why optimisation does not transfer
+* Why validation creates no trades
+* Whether regime filter is too aggressive
+
+---
+
+## 2. Fix Validation Metrics
+
+Confirm:
+
+* Trade counting
+* Win/loss calculation
+* Drawdown calculation
+* Profit factor calculation
+
+---
+
+## 3. Improve Optimisation
+
+Possible improvements:
+
+* Add minimum validation trades requirement
+* Penalise unstable strategies
+* Optimise across multiple symbols
+* Add different market regimes
+* Add out-of-sample scoring
+
+---
+
+## 4. Add Robustness Testing
+
+Examples:
+
+* Different symbols
+* Different time periods
+* Monte Carlo simulation
+* Parameter sensitivity testing
+
+---
+
+# 12. Current Atlas Development Philosophy
+
+Do NOT optimise for maximum historical profit.
+
+Goal:
+
+Find strategies that survive unseen market conditions.
+
+A good Atlas strategy should have:
+
+* Consistent returns
+* Reasonable drawdown
+* Stable parameters
+* Multiple market regimes
+* Repeatable performance
+
+---
+
+# 13. Tomorrow's Starting Point
+
+Start by checking:
+
+1. `validation/walk_forward.py`
+2. `validation/metrics.py`
+3. `backtesting/engine.py`
+4. `strategy/signal_generator.py`
+
+Main question:
+
+"Why does the optimiser find profitable strategies that fail immediately on unseen data?"
+
+The next milestone is not higher backtest profit.
+
+The next milestone is:
+
+A strategy that passes walk-forward validation consistently.
+
+---
+
+END OF STATUS
