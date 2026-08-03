@@ -351,3 +351,8 @@ Keep research reproducible
 Current Status
 
 Atlas 3.2 is stable and ready for validation development.
+(.venv) PS C:\Users\Admin\Atlas> git log -1
+commit 53f74a77c772350af720175a670fd4bf22c559db (HEAD -> refactor/atlas-2.1)
+Author: liam <liam.thornton@hotmail.co.uk>
+Date:   Sat Aug 1 20:04:01 2026 +0100
+:

@@ -1,15 +1,14 @@
 """
-Atlas AI Trading Platform 3.0
+Atlas AI Trading Platform 3.3
 
 Optimisation Worker
 
-Executes a single strategy configuration.
+Runs one optimisation configuration.
 
-Designed for:
+Supports:
 
-- Multiprocessing
-- Parallel optimisation
-- Distributed research
+- Parameter testing
+- Regime filter experiments
 """
 
 from __future__ import annotations
@@ -20,48 +19,48 @@ from backtesting.engine import BacktestEngine
 
 
 def run_configuration(
-    dataset,
-    symbol: str,
-    starting_cash: float,
-    score_threshold: int,
-    confidence: float,
-    atr_stop: float,
-    atr_target: float,
-):
-    """
-    Run one optimisation configuration.
 
-    Returns:
-        dict containing:
-        - parameters
-        - backtest results
-    """
+    dataset,
+
+    symbol: str,
+
+    starting_cash: float,
+
+    score_threshold: int,
+
+    confidence: float,
+
+    atr_stop: float,
+
+    atr_target: float,
+
+    use_regime_filter: bool = False,
+
+):
 
 
     engine = BacktestEngine(
-        starting_cash
+
+        starting_cash=starting_cash,
+
+        use_regime_filter=use_regime_filter,
+
     )
 
 
-    result = engine.run(
+    results = engine.run(
+
         dataset,
-        score_threshold,
-        confidence,
-        atr_stop,
-        atr_target,
+
+        score_threshold=int(score_threshold),
+
+        confidence_threshold=float(confidence),
+
+        atr_stop=float(atr_stop),
+
+        atr_target=float(atr_target),
+
     )
 
 
-    return {
-
-        "score_threshold": score_threshold,
-
-        "confidence": confidence,
-
-        "atr_stop": atr_stop,
-
-        "atr_target": atr_target,
-
-        **result,
-
-    }
+    return results

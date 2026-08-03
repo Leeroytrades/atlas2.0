@@ -1,19 +1,18 @@
 """
-Atlas AI Trading Platform 3.2
+Atlas AI Trading Platform 3.3
 
-Strategy Optimiser
-
-Smart quantitative research engine.
+Strategy Optimisation Engine
 
 Features:
 
-- Cached datasets
-- Multiprocessing optimisation
-- SQLite experiment storage
-- Intelligent parameter search
-- Risk adjusted ranking
-- Reduced redundant testing
+- Parameter search
+- Parallel backtesting
+- Robust ranking
+- Dataset caching
+- Result persistence
+- Best configuration reporting
 """
+
 
 from __future__ import annotations
 
@@ -33,22 +32,29 @@ class StrategyOptimizer:
         self,
         symbol: str = "SPY",
         starting_cash: float = 100000.0,
+        use_regime_filter: bool = True,
     ):
+
 
         self.symbol = symbol
 
         self.starting_cash = starting_cash
 
+        self.use_regime_filter = use_regime_filter
+
+
         self.results = []
 
+
         self.cache = DatasetCache()
+
 
         self.database = OptimisationDatabase()
 
 
 
     # =====================================================
-    # Ranking System
+    # Ranking
     # =====================================================
 
     def calculate_score(
@@ -63,14 +69,14 @@ class StrategyOptimizer:
         )
 
 
-        win_rate = result.get(
-            "win_rate",
+        profit_factor = result.get(
+            "profit_factor",
             0
         )
 
 
-        profit_factor = result.get(
-            "profit_factor",
+        win_rate = result.get(
+            "win_rate",
             0
         )
 
@@ -84,8 +90,6 @@ class StrategyOptimizer:
         score = 0
 
 
-
-        # Profit contribution
 
         score += (
 
@@ -101,51 +105,38 @@ class StrategyOptimizer:
 
             *
 
-            35
+            30
 
         )
 
 
 
-        # Win rate
+        score += min(
 
-        score += (
-
-            win_rate
-
-            *
-
-            0.25
-
-        )
-
-
-
-        # Profit factor
-
-        if isinstance(
             profit_factor,
-            (int,float)
-        ):
 
-            score += (
+            4
 
-                min(
-                    profit_factor,
-                    5
-                )
-
-                *
-
-                20
-
-            )
+        ) * 20
 
 
 
-        # Trade quantity reliability
+        score += min(
 
-        if trades >= 100:
+            win_rate,
+
+            70
+
+        ) * 0.15
+
+
+
+        if trades >= 200:
+
+            score += 20
+
+
+        elif trades >= 100:
 
             score += 15
 
@@ -162,72 +153,72 @@ class StrategyOptimizer:
 
         else:
 
-            score -= 10
+            score -= 20
+
+
+
+        if profit_factor > 6 and trades < 100:
+
+            score -= 20
+
+
+        if profit_factor > 10:
+
+            score -= 30
 
 
 
         return round(
+
             score,
+
             2
+
         )
 
 
 
     # =====================================================
-    # Smart Parameter Generator
+    # Generate Search Space
     # =====================================================
 
-    def generate_configurations(
-        self,
-    ):
+    def generate_configurations(self):
 
 
         configurations = []
 
 
-
         scores = [
-
             40,
             50,
             60,
             70,
             80,
-
         ]
 
 
-
         confidences = [
-
             0.4,
             0.5,
             0.6,
             0.7,
-
         ]
 
 
-
         atr_stops = [
-
             3.0,
             3.5,
             3.75,
             4.0,
             4.25,
-
         ]
 
 
-
         atr_targets = [
-
             4.0,
             4.5,
             5.0,
             5.5,
-
         ]
 
 
@@ -258,7 +249,6 @@ class StrategyOptimizer:
                         )
 
 
-
         return configurations
 
 
@@ -285,6 +275,8 @@ class StrategyOptimizer:
             f"Loading dataset {self.symbol}"
         )
 
+        print()
+
 
 
         dataset = self.cache.load(
@@ -295,25 +287,23 @@ class StrategyOptimizer:
 
 
 
+        configs = self.generate_configurations()
+
+
+
         print(
-            f"Dataset rows: {len(dataset)}"
+
+            f"Testing {len(configs)} configurations"
+
         )
 
 
 
-        configurations = self.generate_configurations()
+        runner = ParallelOptimizer(
 
+            use_regime_filter=self.use_regime_filter
 
-
-        print()
-
-        print(
-            f"Configurations: {len(configurations)}"
         )
-
-
-
-        runner = ParallelOptimizer()
 
 
 
@@ -325,7 +315,7 @@ class StrategyOptimizer:
 
             self.starting_cash,
 
-            configurations,
+            configs,
 
         )
 
@@ -338,21 +328,21 @@ class StrategyOptimizer:
         for result in results:
 
 
-
             if result.get(
+
                 "total_trades",
+
                 0
+
             ) < 10:
 
                 continue
 
 
 
-            result["ranking_score"] = (
+            result["ranking_score"] = self.calculate_score(
 
-                self.calculate_score(
-                    result
-                )
+                result
 
             )
 
@@ -367,6 +357,7 @@ class StrategyOptimizer:
             )
 
 
+
             self.results.append(
 
                 result
@@ -375,20 +366,42 @@ class StrategyOptimizer:
 
 
 
-        self.results = sorted(
-
-            self.results,
+        self.results.sort(
 
             key=lambda x:
 
-                x["ranking_score"],
+            x.get(
+
+                "ranking_score",
+
+                0
+
+            ),
 
             reverse=True,
 
         )
 
 
+
         return self.results
+
+
+
+    # =====================================================
+    # Compatibility Alias
+    # =====================================================
+
+    def run(
+        self,
+        symbol: str | None = None,
+    ):
+
+        return self.optimise(
+
+            symbol
+
+        )
 
 
 
@@ -405,16 +418,15 @@ class StrategyOptimizer:
         print()
 
         print(
-            "Best Configurations"
+            "BEST CONFIGURATIONS"
         )
 
         print(
-            "------------------"
+            "==================="
         )
 
 
-
-        for index, result in enumerate(
+        for i, result in enumerate(
 
             self.results[:count],
 
@@ -423,38 +435,24 @@ class StrategyOptimizer:
         ):
 
 
-
             print()
-
-
 
             print(
 
-                f"{index}. "
+                f"{i}. "
 
                 f"Profit ${result.get('net_profit',0):.2f} "
 
-                f"| Win Rate "
-
-                f"{result.get('win_rate',0)}% "
-
-                f"| PF "
-
-                f"{result.get('profit_factor',0)}"
+                f"| PF {result.get('profit_factor',0)}"
 
             )
 
 
-
             print(
 
-                "   "
+                f"   Score {result.get('score_threshold')} "
 
-                f"Score {result.get('score_threshold')} "
-
-                f"| Confidence "
-
-                f"{result.get('confidence')} "
+                f"| Confidence {result.get('confidence')} "
 
                 f"| ATR "
 
@@ -465,13 +463,8 @@ class StrategyOptimizer:
             )
 
 
-
             print(
 
-                "   "
-
-                f"Ranking Score: "
-
-                f"{result.get('ranking_score')}"
+                f"   Ranking {result.get('ranking_score')}"
 
             )

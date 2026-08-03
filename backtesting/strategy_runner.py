@@ -1,24 +1,14 @@
 """
-Atlas AI Trading Platform 3.2
+Atlas Strategy Runner 3.0
 
-Backtesting Strategy Runner
-
-Optimised signal engine.
-
-Improvements:
-
-- Uses pre-calculated indicator datasets
-- Avoids rebuilding indicators every candle
-- Faster optimisation
-- Same signal logic
+Routes historical candles through the active strategy system.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
-from strategy.signal_generator import generate_scorecard
-
+from strategies.router import StrategyRouter
 
 
 class StrategyRunner:
@@ -31,37 +21,47 @@ class StrategyRunner:
     ):
 
         self.score_threshold = score_threshold
-
         self.confidence_threshold = confidence_threshold
 
+        self.router = StrategyRouter()
 
 
-    # ---------------------------------------------------------
-    # Analyse existing indicator dataframe
-    # ---------------------------------------------------------
+
+    # -------------------------------------------------
+    # Analyse candle
+    # -------------------------------------------------
 
     def analyse(
         self,
         dataframe: pd.DataFrame,
+        regime: str = "TREND",
     ):
 
 
-        scorecard = generate_scorecard(
+        strategy = self.router.select(
 
-            dataframe,
-
-            buy_threshold=self.score_threshold
+            regime
 
         )
 
 
-        return scorecard
+        if strategy is None:
+
+            return None
 
 
 
-    # ---------------------------------------------------------
-    # Generate historical signals
-    # ---------------------------------------------------------
+        return strategy.generate_signal(
+
+            dataframe
+
+        )
+
+
+
+    # -------------------------------------------------
+    # Historical signal generation
+    # -------------------------------------------------
 
     def run(
         self,
@@ -73,9 +73,6 @@ class StrategyRunner:
         results = []
 
 
-
-        # Indicators already exist.
-        # No rebuilding on every candle.
 
         for index in range(
 
@@ -97,53 +94,86 @@ class StrategyRunner:
 
 
 
-                scorecard = self.analyse(
+                # temporary regime detection
+                # will later be replaced by ML regime engine
 
-                    window
+                close = window["Close"].iloc[-1]
 
-                )
+                ema20 = window["EMA_20"].iloc[-1]
 
-
-
-                score = scorecard.total_score
-
-                confidence = scorecard.confidence
-
-                bias = scorecard.bias
+                ema50 = window["EMA_50"].iloc[-1]
 
 
 
-                if bias == "BUY":
+                if (
 
+                    ema20 > ema50
+                    and close > ema20
 
-                    if score < self.score_threshold:
+                ):
 
-                        continue
-
-
-
-                    if confidence < self.confidence_threshold:
-
-                        continue
+                    regime = "BULLISH"
 
 
 
-                elif bias == "SELL":
+                elif (
 
+                    ema20 < ema50
+                    and close < ema20
 
-                    if abs(score) < self.score_threshold:
+                ):
 
-                        continue
-
-
-
-                    if confidence < self.confidence_threshold:
-
-                        continue
+                    regime = "BEARISH"
 
 
 
                 else:
+
+                    regime = "TREND"
+
+
+
+                signal = self.analyse(
+
+                    window,
+
+                    regime,
+
+                )
+
+
+                if signal is None:
+
+                    continue
+
+
+
+                bias = signal["signal"]
+
+                score = signal["score"]
+
+                confidence = signal["confidence"]
+
+
+
+                if bias not in (
+
+                    "BUY",
+                    "SELL"
+
+                ):
+
+                    continue
+
+
+
+                if abs(score) < self.score_threshold:
+
+                    continue
+
+
+
+                if confidence < self.confidence_threshold:
 
                     continue
 
@@ -165,14 +195,11 @@ class StrategyRunner:
 
                         "confidence": confidence,
 
-                        "signal": scorecard.signal,
-
-                        "scorecard": scorecard,
+                        "signal": bias,
 
                     }
 
                 )
-
 
 
             except Exception as error:
@@ -180,7 +207,7 @@ class StrategyRunner:
 
                 print(
 
-                    f"Backtest error {index}: {error}"
+                    f"Strategy error {index}: {error}"
 
                 )
 
