@@ -1,19 +1,10 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.5
 
-Walk Forward Window Generator
+Walk Forward Validation Windows
 
-Creates:
-
-Training Period
-        |
-Validation Period
-
-Supports:
-
-- Rolling windows
-- Expanding windows
-- Window numbering
+Creates training and unseen validation
+periods for robustness testing.
 """
 
 from __future__ import annotations
@@ -21,34 +12,54 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import pandas as pd
 
 
 
-@dataclass
+# =====================================================
+# WINDOW MODEL
+# =====================================================
+
+@dataclass(slots=True)
 class ValidationWindow:
 
 
-    window_id: int
+    training: object
 
-    training: pd.DataFrame
-
-    validation: pd.DataFrame
+    validation: object
 
 
+
+    def __str__(self):
+
+        return (
+
+            f"Training candles: {len(self.training)} | "
+
+            f"Validation candles: {len(self.validation)}"
+
+        )
+
+
+
+
+
+# =====================================================
+# WINDOW GENERATOR
+# =====================================================
 
 class WindowGenerator:
+
 
 
     def __init__(
 
         self,
 
-        training_size: int = 500,
+        training_size: int = 1000,
 
-        validation_size: int = 100,
+        validation_size: int = 250,
 
-        step_size: int = 100,
+        step_size: int = 250,
 
         expanding: bool = True,
 
@@ -65,25 +76,75 @@ class WindowGenerator:
 
 
 
+
+
     # =====================================================
-    # Generate Windows
+    # CREATE WINDOWS
     # =====================================================
 
     def generate(
 
         self,
 
-        dataframe: pd.DataFrame,
+        dataframe,
 
-    ) -> list[ValidationWindow]:
+    ):
 
 
         windows = []
 
 
-        start = 0
 
-        window_number = 1
+        if dataframe is None:
+
+            print(
+                "WINDOW ERROR: Dataset is None"
+            )
+
+            return windows
+
+
+
+        total_rows = len(dataframe)
+
+
+
+        print()
+
+        print(
+            f"Dataset candles available: {total_rows}"
+        )
+
+        print(
+            f"Required per window: {self.training_size + self.validation_size}"
+        )
+
+
+
+        if total_rows < (
+
+            self.training_size
+
+            +
+
+            self.validation_size
+
+        ):
+
+
+            print()
+
+            print(
+                "WINDOW ERROR: Not enough data"
+            )
+
+            return windows
+
+
+
+
+
+        start = 0
 
 
 
@@ -91,29 +152,35 @@ class WindowGenerator:
 
 
 
-            train_start = 0 if self.expanding else start
+            if self.expanding:
 
 
-            train_end = (
+                training_start = 0
 
-                self.training_size + start
 
-                if self.expanding
+            else:
 
-                else
 
-                start + self.training_size
+                training_start = start
+
+
+
+
+            training_end = (
+
+                start
+
+                +
+
+                self.training_size
 
             )
 
 
 
-            validation_start = train_end
-
-
             validation_end = (
 
-                validation_start
+                training_end
 
                 +
 
@@ -123,15 +190,17 @@ class WindowGenerator:
 
 
 
-            if validation_end > len(dataframe):
+            if validation_end > total_rows:
 
                 break
 
 
 
+
+
             training = dataframe.iloc[
 
-                train_start:train_end
+                training_start:training_end
 
             ].copy()
 
@@ -139,17 +208,30 @@ class WindowGenerator:
 
             validation = dataframe.iloc[
 
-                validation_start:validation_end
+                training_end:validation_end
 
             ].copy()
+
+
+
+
+            if len(training) < self.training_size:
+
+                break
+
+
+
+            if len(validation) < self.validation_size:
+
+                break
+
+
 
 
 
             windows.append(
 
                 ValidationWindow(
-
-                    window_id=window_number,
 
                     training=training,
 
@@ -161,10 +243,19 @@ class WindowGenerator:
 
 
 
-            window_number += 1
-
-
             start += self.step_size
+
+
+
+
+
+        print()
+
+        print(
+
+            f"Generated validation windows: {len(windows)}"
+
+        )
 
 
 

@@ -1,14 +1,32 @@
 """
-Atlas Strategy Runner 3.0
+Atlas AI Trading Platform 3.6
 
-Routes historical candles through the active strategy system.
+Adaptive Strategy Runner
+
+Routes historical candles through:
+
+- Regime Detector
+- Strategy Router
+- Active Strategy
+
+Used by:
+
+Backtesting
+Optimisation
+Validation
+Research
 """
 
 from __future__ import annotations
 
+
 import pandas as pd
 
+
 from strategies.router import StrategyRouter
+
+from research.regime_detector import RegimeDetector
+
 
 
 class StrategyRunner:
@@ -20,22 +38,54 @@ class StrategyRunner:
         confidence_threshold: float = 0.70,
     ):
 
+
         self.score_threshold = score_threshold
+
         self.confidence_threshold = confidence_threshold
+
 
         self.router = StrategyRouter()
 
+        self.regime_detector = RegimeDetector()
 
 
-    # -------------------------------------------------
-    # Analyse candle
-    # -------------------------------------------------
+
+    # =====================================================
+    # ANALYSE CURRENT WINDOW
+    # =====================================================
 
     def analyse(
         self,
         dataframe: pd.DataFrame,
-        regime: str = "TREND",
     ):
+
+
+        regime_data = self.regime_detector.analyse(
+
+            dataframe
+
+        )
+
+
+        if isinstance(
+            regime_data,
+            dict
+        ):
+
+
+            regime = regime_data.get(
+
+                "regime",
+
+                "TREND"
+
+            )
+
+
+        else:
+
+            regime = regime_data
+
 
 
         strategy = self.router.select(
@@ -43,6 +93,7 @@ class StrategyRunner:
             regime
 
         )
+
 
 
         if strategy is None:
@@ -59,9 +110,9 @@ class StrategyRunner:
 
 
 
-    # -------------------------------------------------
-    # Historical signal generation
-    # -------------------------------------------------
+    # =====================================================
+    # HISTORICAL RUN
+    # =====================================================
 
     def run(
         self,
@@ -94,52 +145,12 @@ class StrategyRunner:
 
 
 
-                # temporary regime detection
-                # will later be replaced by ML regime engine
-
-                close = window["Close"].iloc[-1]
-
-                ema20 = window["EMA_20"].iloc[-1]
-
-                ema50 = window["EMA_50"].iloc[-1]
-
-
-
-                if (
-
-                    ema20 > ema50
-                    and close > ema20
-
-                ):
-
-                    regime = "BULLISH"
-
-
-
-                elif (
-
-                    ema20 < ema50
-                    and close < ema20
-
-                ):
-
-                    regime = "BEARISH"
-
-
-
-                else:
-
-                    regime = "TREND"
-
-
-
                 signal = self.analyse(
 
-                    window,
-
-                    regime,
+                    window
 
                 )
+
 
 
                 if signal is None:
@@ -148,18 +159,37 @@ class StrategyRunner:
 
 
 
-                bias = signal["signal"]
+                bias = signal.get(
 
-                score = signal["score"]
+                    "signal"
 
-                confidence = signal["confidence"]
+                )
+
+
+                score = signal.get(
+
+                    "score",
+
+                    0
+
+                )
+
+
+                confidence = signal.get(
+
+                    "confidence",
+
+                    0
+
+                )
 
 
 
                 if bias not in (
 
                     "BUY",
-                    "SELL"
+
+                    "SELL",
 
                 ):
 
@@ -183,23 +213,44 @@ class StrategyRunner:
 
                     {
 
-                        "index": index,
+                        "index":
 
-                        "date": dataframe.index[index],
+                            index,
 
-                        "symbol": symbol,
 
-                        "score": score,
+                        "date":
 
-                        "bias": bias,
+                            dataframe.index[index],
 
-                        "confidence": confidence,
 
-                        "signal": bias,
+                        "symbol":
+
+                            symbol,
+
+
+                        "score":
+
+                            score,
+
+
+                        "bias":
+
+                            bias,
+
+
+                        "confidence":
+
+                            confidence,
+
+
+                        "signal":
+
+                            bias,
 
                     }
 
                 )
+
 
 
             except Exception as error:
@@ -210,6 +261,7 @@ class StrategyRunner:
                     f"Strategy error {index}: {error}"
 
                 )
+
 
                 continue
 

@@ -1,12 +1,18 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.6
 
 Parallel Optimisation Runner
 
 Runs multiple backtest configurations
 using multiprocessing.
-"""
 
+Supports:
+
+- BacktestResult objects
+- Metadata attachment
+- Walk-forward validation
+- Regime-aware strategies
+"""
 
 from __future__ import annotations
 
@@ -20,6 +26,8 @@ from concurrent.futures import (
 
 
 from backtesting.engine import BacktestEngine
+
+
 
 
 
@@ -43,7 +51,7 @@ def run_configuration(
 
     atr_target: float,
 
-    use_regime_filter: bool = False,
+    use_regime_filter: bool = True,
 
 ):
 
@@ -57,32 +65,83 @@ def run_configuration(
     )
 
 
-    results = engine.run(
+
+    result = engine.run(
 
         dataset,
 
-        score_threshold=int(score_threshold),
+        score_threshold=int(
+            score_threshold
+        ),
 
-        confidence_threshold=float(confidence),
+        confidence_threshold=float(
+            confidence
+        ),
 
-        atr_stop=float(atr_stop),
+        atr_stop=float(
+            atr_stop
+        ),
 
-        atr_target=float(atr_target),
+        atr_target=float(
+            atr_target
+        ),
 
     )
+
+
+
+    # ---------------------------------
+    # Convert result object to dict
+    # ---------------------------------
+
+    if hasattr(
+        result,
+        "to_dict"
+    ):
+
+        results = result.to_dict()
+
+
+    else:
+
+        results = dict(
+            result
+        )
+
 
 
     # ---------------------------------
     # Attach configuration metadata
     # ---------------------------------
 
-    results["score_threshold"] = score_threshold
+    results.update(
 
-    results["confidence"] = confidence
+        {
 
-    results["atr_stop"] = atr_stop
 
-    results["atr_target"] = atr_target
+            "score_threshold":
+
+                score_threshold,
+
+
+            "confidence":
+
+                confidence,
+
+
+            "atr_stop":
+
+                atr_stop,
+
+
+            "atr_target":
+
+                atr_target,
+
+        }
+
+    )
+
 
 
     return results
@@ -125,7 +184,11 @@ class ParallelOptimizer:
         )
 
 
-        self.use_regime_filter = use_regime_filter
+        self.use_regime_filter = (
+
+            use_regime_filter
+
+        )
 
 
 
@@ -154,9 +217,7 @@ class ParallelOptimizer:
 
 
         total = len(
-
             configurations
-
         )
 
 
@@ -215,9 +276,7 @@ class ParallelOptimizer:
 
 
                 futures.append(
-
                     future
-
                 )
 
 
@@ -231,7 +290,6 @@ class ParallelOptimizer:
                 futures
 
             ):
-
 
 
                 result = future.result()

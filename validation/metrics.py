@@ -1,20 +1,18 @@
 """
-Atlas AI Trading Platform 3.4
+Atlas AI Trading Platform 3.5
 
 Validation Metrics
 
-Calculates performance statistics
-for walk-forward validation.
+Used for:
 
-Updated:
-
-- Stronger pass criteria
-- Prevents low trade count false positives
-- Improved stability scoring
-- Regime validation support
+- Walk forward validation
+- Robustness scoring
+- Strategy acceptance
+- Overfit protection
 """
 
 from __future__ import annotations
+
 
 from dataclasses import dataclass
 
@@ -43,7 +41,7 @@ class ValidationMetrics:
 
 
     # =====================================================
-    # CREATE FROM BACKTEST RESULT
+    # BUILD FROM BACKTEST RESULT
     # =====================================================
 
     @classmethod
@@ -52,35 +50,33 @@ class ValidationMetrics:
         result: dict,
     ):
 
+
         return cls(
 
             profit=result.get(
-                "net_profit",
+                "profit",
                 result.get(
-                    "profit",
-                    0.0
+                    "net_profit",
+                    0
                 )
             ),
 
 
             win_rate=result.get(
                 "win_rate",
-                0.0
+                0
             ),
 
 
             profit_factor=result.get(
                 "profit_factor",
-                0.0
+                0
             ),
 
 
             total_trades=result.get(
                 "total_trades",
-                result.get(
-                    "trades",
-                    0
-                )
+                0
             ),
 
 
@@ -98,7 +94,13 @@ class ValidationMetrics:
 
             max_drawdown=result.get(
                 "max_drawdown",
-                0.0
+                0
+            ),
+
+
+            stability_score=result.get(
+                "stability_score",
+                0
             ),
 
         )
@@ -106,38 +108,59 @@ class ValidationMetrics:
 
 
     # =====================================================
-    # STABILITY SCORE
+    # ROBUSTNESS SCORE
     # =====================================================
 
-    def calculate_stability(
-        self,
-    ):
+    def robustness_score(self):
+
 
         score = 0
 
 
 
+        # ---------------------------------
         # Profit
+        # ---------------------------------
 
         if self.profit > 0:
 
-            score += 35
+            score += 25
 
 
 
+        # ---------------------------------
+        # Trade sample size
+        # ---------------------------------
+
+        if self.total_trades >= 100:
+
+            score += 15
+
+
+        elif self.total_trades >= 50:
+
+            score += 10
+
+
+        elif self.total_trades >= 30:
+
+            score += 5
+
+
+
+        # ---------------------------------
         # Profit factor
+        # ---------------------------------
 
-        if self.profit_factor >= 3:
-
-            score += 30
-
-        elif self.profit_factor >= 2:
+        if self.profit_factor >= 2:
 
             score += 25
+
 
         elif self.profit_factor >= 1.5:
 
             score += 15
+
 
         elif self.profit_factor >= 1:
 
@@ -145,130 +168,104 @@ class ValidationMetrics:
 
 
 
-        # Trade sample size
+        # ---------------------------------
+        # Drawdown
+        # ---------------------------------
 
-        if self.total_trades >= 100:
+        if self.max_drawdown <= 10:
 
             score += 20
 
-        elif self.total_trades >= 50:
+
+        elif self.max_drawdown <= 15:
+
+            score += 10
+
+
+        elif self.max_drawdown > 25:
+
+            score -= 40
+
+
+        elif self.max_drawdown > 40:
+
+            score -= 80
+
+
+
+        # ---------------------------------
+        # Stability
+        # ---------------------------------
+
+        if self.stability_score >= 80:
 
             score += 15
 
-        elif self.total_trades >= 20:
+
+        elif self.stability_score >= 60:
 
             score += 10
 
 
 
-        # Win rate
+        return max(
 
-        if self.win_rate >= 60:
+            0,
 
-            score += 10
+            min(
 
-        elif self.win_rate >= 50:
+                score,
 
-            score += 5
-
-
-
-        # Drawdown penalty
-
-        if self.max_drawdown > 0:
-
-            score -= min(
-
-                self.max_drawdown * 0.5,
-
-                20
+                100
 
             )
-
-
-
-        self.stability_score = round(
-
-            max(
-                score,
-                0
-            ),
-
-            2
 
         )
 
 
-        return self.stability_score
+
+    # =====================================================
+    # PASS / FAIL
+    # =====================================================
+
+    def passes(self):
+
+
+        score = self.robustness_score()
+
+
+
+        # Hard safety checks
+
+        if self.max_drawdown > 25:
+
+            return False
+
+
+
+        if self.profit_factor < 1.3:
+
+            return False
+
+
+
+        if self.total_trades < 30:
+
+            return False
+
+
+
+        return score >= 70
 
 
 
     # =====================================================
-    # VALIDATION PASS CHECK
-    # =====================================================
-
-    def passes(
-
-        self,
-
-        minimum_profit_factor: float = 1.5,
-
-        minimum_trades: int = 20,
-
-        minimum_win_rate: float = 45.0,
-
-    ) -> bool:
-
-
-        """
-        Strong validation acceptance.
-
-        Prevents:
-
-        - 2 trade lucky wins
-        - Huge fake profit factors
-        - Overfitted windows
-
-        """
-
-
-        if self.profit <= 0:
-
-            return False
-
-
-
-        if self.total_trades < minimum_trades:
-
-            return False
-
-
-
-        if self.profit_factor < minimum_profit_factor:
-
-            return False
-
-
-
-        if self.win_rate < minimum_win_rate:
-
-            return False
-
-
-
-        return True
-
-
-
-    # =====================================================
-    # DICTIONARY EXPORT
+    # DICT OUTPUT
     # =====================================================
 
     def to_dict(
-
         self,
-
-    ) -> dict:
+    ):
 
 
         return {
@@ -276,17 +273,26 @@ class ValidationMetrics:
 
             "profit":
 
-                self.profit,
+                round(
+                    self.profit,
+                    2
+                ),
 
 
             "win_rate":
 
-                self.win_rate,
+                round(
+                    self.win_rate,
+                    2
+                ),
 
 
             "profit_factor":
 
-                self.profit_factor,
+                round(
+                    self.profit_factor,
+                    2
+                ),
 
 
             "total_trades":
@@ -306,11 +312,22 @@ class ValidationMetrics:
 
             "max_drawdown":
 
-                self.max_drawdown,
+                round(
+                    self.max_drawdown,
+                    2
+                ),
 
 
             "stability_score":
 
-                self.stability_score,
+                round(
+                    self.stability_score,
+                    2
+                ),
+
+
+            "robustness_score":
+
+                self.robustness_score(),
 
         }

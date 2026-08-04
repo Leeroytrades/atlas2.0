@@ -1,16 +1,23 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.6
 
-Strategy Router
+Adaptive Strategy Router
 
-Selects the correct strategy
-based on detected market regime.
+Routes strategies using:
+
+- Trend state
+- Range detection
+- Volatility state
+- Momentum state
+
+Designed for walk-forward validation.
 """
 
 from __future__ import annotations
 
 
-from strategies.trend import TrendStrategy
+from strategy.trend_strategy import TrendStrategy
+from strategy.range_strategy import RangeStrategy
 
 
 
@@ -19,13 +26,98 @@ class StrategyRouter:
 
     def __init__(self):
 
-        self.strategies = [
 
-            TrendStrategy(),
-
-        ]
+        self.strategies = {
 
 
+            "TREND":
+
+                TrendStrategy(),
+
+
+            "RANGE":
+
+                RangeStrategy(),
+
+
+        }
+
+
+
+    # =====================================================
+    # REGIME NORMALISER
+    # =====================================================
+
+    def normalise(
+        self,
+        regime: str,
+    ):
+
+
+        if regime is None:
+
+            return "TREND"
+
+
+
+        regime = str(
+            regime
+        ).upper()
+
+
+
+        # Trend environments
+
+        if regime in (
+
+            "BULLISH",
+
+            "BEARISH",
+
+            "TREND",
+
+            "STRONG_TREND",
+
+        ):
+
+            return "TREND"
+
+
+
+        # Range environments
+
+        if regime in (
+
+            "RANGE",
+
+            "SIDEWAYS",
+
+            "CONSOLIDATION",
+
+            "MEAN_REVERSION",
+
+        ):
+
+            return "RANGE"
+
+
+
+        # Volatility handling
+
+        if "VOLATILE" in regime:
+
+
+            return "TREND"
+
+
+
+        return "TREND"
+
+
+
+    # =====================================================
+    # SELECT STRATEGY
+    # =====================================================
 
     def select(
         self,
@@ -33,27 +125,32 @@ class StrategyRouter:
     ):
 
 
-        for strategy in self.strategies:
+        strategy_type = self.normalise(
+
+            regime
+
+        )
 
 
-            if strategy.enabled:
+        return self.strategies.get(
 
-                if regime in strategy.regimes:
+            strategy_type,
 
-                    return strategy
+            self.strategies["TREND"]
 
-
-
-        return None
+        )
 
 
 
-    def info(self):
+    # =====================================================
+    # AVAILABLE STRATEGIES
+    # =====================================================
 
-        return [
+    def available(self):
 
-            strategy.info()
 
-            for strategy in self.strategies
+        return list(
 
-        ]
+            self.strategies.keys()
+
+        )

@@ -1,16 +1,16 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.6
 
-Backtesting Engine
+Adaptive Backtesting Engine
 
-Supports:
+Adds:
 
-- Long trades
-- Short trades
-- Dynamic parameters
-- Optional regime filtering
+- Regime detection
 - Strategy routing
-- Indicator generation
+- Trend strategy
+- Range strategy
+- Volatility fallback
+- Dynamic parameters
 """
 
 from __future__ import annotations
@@ -20,19 +20,19 @@ import pandas as pd
 
 
 from backtesting.historical_data import HistoricalData
-
-from backtesting.strategy_runner import StrategyRunner
-
 from backtesting.simulator import Simulator
 
 
 from risk.risk_manager import create_trade
 
 
-from strategy.regime_filter import RegimeFilter
-
-
 from indicators.composite import build_indicator_set
+
+
+from research.regime_detector import RegimeDetector
+
+
+from strategy.router import StrategyRouter
 
 
 
@@ -49,7 +49,7 @@ class BacktestEngine:
 
         starting_cash: float = 100000.0,
 
-        use_regime_filter: bool = False,
+        use_regime_filter: bool = True,
 
     ):
 
@@ -59,120 +59,103 @@ class BacktestEngine:
         self.use_regime_filter = use_regime_filter
 
 
-        self.data = HistoricalData()
+        self.data_loader = HistoricalData()
 
 
-        self.regime_filter = RegimeFilter()
+        self.regime_detector = RegimeDetector()
 
 
-
-        print()
-
-        print(
-
-            f"REGIME FILTER ACTIVE: {self.use_regime_filter}"
-
-        )
-
-        print()
+        self.router = StrategyRouter()
 
 
 
     # =====================================================
-    # Data Loading
+    # LOAD DATA
     # =====================================================
 
     def _get_data(
 
         self,
 
-        symbol: str,
+        symbol,
 
     ):
 
 
         if symbol in self._data_cache:
 
-
             return self._data_cache[symbol]
 
 
 
-        dataframe = self.data.load(
+        data = self.data_loader.load(
 
             symbol
 
         )
 
 
-        # ---------------------------------
-        # Add indicators
-        # ---------------------------------
+        data = build_indicator_set(
 
-        dataframe = build_indicator_set(
-
-            dataframe
+            data
 
         )
 
 
-
-        self._data_cache[symbol] = dataframe
-
+        self._data_cache[symbol] = data
 
 
-        return dataframe
-
+        return data
 
 
 
     # =====================================================
-    # Backtest Runner
+    # RUN
     # =====================================================
 
     def run(
 
         self,
 
-        symbol: str | pd.DataFrame,
+        symbol,
 
-        score_threshold: int = 70,
+        score_threshold=40,
 
-        confidence_threshold: float = 0.70,
+        confidence_threshold=0.4,
 
-        atr_stop: float = 2.0,
+        atr_stop=4.0,
 
-        atr_target: float = 4.0,
+        atr_target=6.0,
 
     ):
 
 
 
-        if isinstance(symbol, pd.DataFrame):
+        if isinstance(symbol,pd.DataFrame):
 
 
-            dataframe = symbol
+            dataframe = symbol.copy()
+
+            trade_symbol="UNKNOWN"
 
 
-            trade_symbol = "UNKNOWN"
 
+            if "ATR" not in dataframe.columns:
 
+                dataframe = build_indicator_set(
 
-            dataframe = build_indicator_set(
+                    dataframe
 
-                dataframe
-
-            )
-
+                )
 
 
         else:
 
 
-            trade_symbol = symbol
+            trade_symbol=symbol
 
 
-            dataframe = self._get_data(
+            dataframe=self._get_data(
 
                 symbol
 
@@ -180,29 +163,9 @@ class BacktestEngine:
 
 
 
-        strategy = StrategyRunner(
-
-            score_threshold=score_threshold,
-
-            confidence_threshold=confidence_threshold,
-
-        )
-
-
-
-        signals = strategy.run(
-
-            dataframe,
-
-            trade_symbol,
-
-        )
-
-
-
         simulator = Simulator(
 
-            self.starting_cash,
+            starting_cash=self.starting_cash,
 
             atr_stop=atr_stop,
 
@@ -212,28 +175,49 @@ class BacktestEngine:
 
 
 
-        last_exit_index = -1
+        last_exit=-1
 
 
 
-        for item in signals:
+        for i in range(
 
+            200,
 
-            index = item["index"]
+            len(dataframe)
 
-
-
-            if index <= last_exit_index:
-
-                continue
+        ):
 
 
 
-            bias = item["bias"]
+            window=dataframe.iloc[:i+1]
 
 
 
-            if bias not in (
+            regime = self.regime_detector.analyse(
+
+                window
+
+            )
+
+
+
+            strategy = self.router.select(
+
+                regime["regime"]
+
+            )
+
+
+
+            signal = strategy.generate_signal(
+
+                window
+
+            )
+
+
+
+            if signal["signal"] not in (
 
                 "BUY",
 
@@ -245,41 +229,21 @@ class BacktestEngine:
 
 
 
-            if item["score"] < score_threshold:
+            if abs(signal["score"]) < score_threshold:
 
                 continue
 
 
 
-            if item["confidence"] < confidence_threshold:
+            if signal["confidence"] < confidence_threshold:
 
                 continue
 
 
 
+            if i <= last_exit:
 
-            window = dataframe.iloc[:index + 1]
-
-
-
-            # ---------------------------------
-            # Regime Filter
-            # ---------------------------------
-
-            if self.use_regime_filter:
-
-
-                allowed = self.regime_filter.is_allowed(
-
-                    window
-
-                )
-
-
-                if not allowed:
-
-                    continue
-
+                continue
 
 
 
@@ -287,7 +251,7 @@ class BacktestEngine:
 
                 "LONG"
 
-                if bias == "BUY"
+                if signal["signal"]=="BUY"
 
                 else
 
@@ -297,8 +261,7 @@ class BacktestEngine:
 
 
 
-
-            trade = create_trade(
+            trade=create_trade(
 
                 trade_symbol,
 
@@ -310,10 +273,9 @@ class BacktestEngine:
 
                 direction,
 
-                item["confidence"],
+                signal["confidence"],
 
             )
-
 
 
 
@@ -323,24 +285,21 @@ class BacktestEngine:
 
 
 
-
-            simulated = simulator.simulate_trade(
+            result=simulator.simulate_trade(
 
                 trade,
 
                 dataframe,
 
-                index,
+                i,
 
             )
 
 
 
-            if simulated:
+            if result:
 
-
-                last_exit_index = index
-
+                last_exit=result.exit_index
 
 
 

@@ -1,16 +1,18 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.5
 
-Validation Report Generator
+Walk Forward Validation Report
 
-Enhanced walk-forward analysis.
+Generates research reports from
+validation windows.
 
-Includes:
+Features:
 
-- Window reporting
+- Aggregate performance
+- Pass rate
+- Robustness score
 - Regime analysis
-- Weighted validation scoring
-- Robustness scoring
+- Strategy health rating
 """
 
 from __future__ import annotations
@@ -22,11 +24,8 @@ class ValidationReport:
 
 
     def __init__(
-
         self,
-
         results: list[dict],
-
     ):
 
         self.results = results
@@ -34,463 +33,385 @@ class ValidationReport:
 
 
     # =====================================================
-    # Display Report
+    # Aggregate Metrics
     # =====================================================
 
-    def display(self):
+    def aggregate(self):
 
 
-        print()
+        total_profit = 0
 
-        print("=" * 50)
+        total_trades = 0
 
-        print(
-            "ATLAS WALK FORWARD VALIDATION REPORT"
-        )
+        wins = 0
 
-        print("=" * 50)
+        losses = 0
 
 
+        gross_profit = 0
 
-        passed = 0
-
-
-
-        valid_windows = 0
+        gross_loss = 0
 
 
 
-        regime_stats = {}
-
-
-
-        for index, result in enumerate(
-
-            self.results,
-
-            start=1,
-
-        ):
-
-
-
-            window_id = result.get(
-
-                "window_id",
-
-                index
-
-            )
-
-
-
-            print()
-
-            print(
-                f"WINDOW {window_id}"
-            )
-
-            print(
-                "-" * 30
-            )
-
-
-
-            training = result.get(
-
-                "training",
-
-                {}
-
-            )
+        for result in self.results:
 
 
             validation = result.get(
-
                 "validation",
-
                 {}
-
             )
 
+
+            profit = validation.get(
+                "profit",
+                0
+            )
 
 
             trades = validation.get(
-
                 "total_trades",
-
                 0
+            )
+
+
+            total_profit += profit
+
+            total_trades += trades
+
+
+            wins += validation.get(
+                "winning_trades",
+                0
+            )
+
+
+            losses += validation.get(
+                "losing_trades",
+                0
+            )
+
+
+            if profit > 0:
+
+                gross_profit += profit
+
+            else:
+
+                gross_loss += abs(
+                    profit
+                )
+
+
+
+        profit_factor = (
+
+            gross_profit / gross_loss
+
+            if gross_loss > 0
+
+            else 0
+
+        )
+
+
+        win_rate = (
+
+            wins /
+            (wins + losses)
+            *
+            100
+
+            if wins + losses > 0
+
+            else 0
+
+        )
+
+
+        return {
+
+
+            "profit":
+
+                round(
+                    total_profit,
+                    2
+                ),
+
+
+            "trades":
+
+                total_trades,
+
+
+            "wins":
+
+                wins,
+
+
+            "losses":
+
+                losses,
+
+
+            "win_rate":
+
+                round(
+                    win_rate,
+                    2
+                ),
+
+
+            "profit_factor":
+
+                round(
+                    profit_factor,
+                    2
+                ),
+
+
+        }
+
+
+
+    # =====================================================
+    # Robustness Score
+    # =====================================================
+
+    def robustness_score(self):
+
+
+        score = 0
+
+
+
+        passed = sum(
+
+            1
+
+            for r in self.results
+
+            if r.get(
+                "verdict"
+            )
+            ==
+            "PASS"
+
+        )
+
+
+
+        total = len(
+            self.results
+        )
+
+
+
+        if total:
+
+
+            score += (
+
+                passed /
+
+                total
+
+                *
+
+                40
 
             )
 
 
 
-            print()
-
-            print(
-                "TRAINING"
-            )
-
-
-            print(
-
-                f"Profit: ${training.get('profit',0):,.2f}"
-
-            )
-
-
-            print(
-
-                f"Win Rate: {training.get('win_rate',0)}%"
-
-            )
-
-
-            print(
-
-                f"Profit Factor: {training.get('profit_factor',0)}"
-
-            )
-
-
-            print(
-
-                f"Trades: {training.get('total_trades',0)}"
-
-            )
+        aggregate = self.aggregate()
 
 
 
-            print()
+        if aggregate["profit"] > 0:
 
-            print(
-                "VALIDATION"
-            )
-
-
-            print(
-
-                f"Profit: ${validation.get('profit',0):,.2f}"
-
-            )
-
-
-            print(
-
-                f"Win Rate: {validation.get('win_rate',0)}%"
-
-            )
-
-
-            print(
-
-                f"Profit Factor: {validation.get('profit_factor',0)}"
-
-            )
-
-
-            print(
-
-                f"Trades: {trades}"
-
-            )
+            score += 20
 
 
 
-            verdict = result.get(
+        if aggregate["profit_factor"] >= 2:
 
-                "verdict",
-
-                "FAIL"
-
-            )
+            score += 25
 
 
+        elif aggregate["profit_factor"] >= 1.5:
 
-            print()
+            score += 15
 
-            print(
 
-                f"VERDICT: {verdict}"
+        elif aggregate["profit_factor"] >= 1:
 
-            )
+            score += 5
 
 
 
-            if verdict == "PASS":
+        if aggregate["trades"] >= 50:
 
-                passed += 1
+            score += 15
+
+
+        elif aggregate["trades"] >= 20:
+
+            score += 10
 
 
 
-            # -------------------------------
-            # Regime Tracking
-            # -------------------------------
+        return round(
+
+            min(
+                score,
+                100
+            ),
+
+            2
+
+        )
+
+
+
+    # =====================================================
+    # Regime Analysis
+    # =====================================================
+
+    def regime_analysis(self):
+
+
+        regimes = {}
+
+
+
+        for result in self.results:
 
 
             regime = result.get(
-
                 "regime",
-
-                {}
-
-            )
-
-
-            environment = regime.get(
-
-                "regime",
-
                 "UNKNOWN"
-
             )
 
 
+            if isinstance(
+                regime,
+                dict
+            ):
 
-            if environment not in regime_stats:
+                regime_name = str(
+                    regime
+                )
 
-                regime_stats[environment] = {
+            else:
 
-                    "windows":0,
+                regime_name = regime
 
-                    "profit":0,
 
-                    "passes":0,
+
+            if regime_name not in regimes:
+
+                regimes[regime_name] = {
+
+
+                    "windows": 0,
+
+                    "passes": 0,
+
 
                 }
 
 
 
-            regime_stats[environment]["windows"] += 1
-
-
-            regime_stats[environment]["profit"] += (
-
-                validation.get(
-
-                    "profit",
-
-                    0
-
-                )
-
-            )
-
-
-            if verdict == "PASS":
-
-                regime_stats[environment]["passes"] += 1
+            regimes[regime_name]["windows"] += 1
 
 
 
-            # Only score windows with trades
+            if result.get(
+                "verdict"
+            ) == "PASS":
 
-            if trades > 0:
-
-                valid_windows += 1
-
-
+                regimes[regime_name]["passes"] += 1
 
 
 
-        print()
-
-        print("=" * 50)
-
-        print(
-
-            f"Windows: {len(self.results)}"
-
-        )
-
-
-
-        rate = (
-
-            passed
-
-            /
-
-            len(self.results)
-
-            *
-
-            100
-
-            if self.results
-
-            else 0
-
-        )
-
-
-
-        print(
-
-            f"Pass Rate: {rate:.1f}%"
-
-        )
-
-
-
-        print("=" * 50)
-
-
-
-        self.display_robustness(
-
-            valid_windows,
-
-            regime_stats,
-
-        )
-
+        return regimes
 
 
 
     # =====================================================
-    # Robustness Analysis
+    # Print Report
     # =====================================================
 
-    def display_robustness(
-
-        self,
-
-        valid_windows,
-
-        regime_stats,
-
-    ):
+    def display(self):
 
 
-        print()
-
-        print("=" * 50)
-
-        print(
-
-            "ATLAS ROBUSTNESS ANALYSIS"
-
-        )
-
-        print("=" * 50)
+        aggregate = self.aggregate()
 
 
 
-        training_quality = self.training_quality()
+        passed = sum(
 
+            1
 
+            for r in self.results
 
-        validation_quality = self.validation_quality()
-
-
-
-        stability = self.stability_score()
-
-
-
-        print()
-
-        print(
-
-            f"Training Quality: {training_quality:.1f}/100"
+            if r.get(
+                "verdict"
+            )
+            ==
+            "PASS"
 
         )
 
 
-        print(
-
-            f"Validation Quality: {validation_quality:.1f}/100"
-
-        )
-
-
-        print(
-
-            f"Stability Score: {stability:.1f}/100"
-
+        total = len(
+            self.results
         )
 
 
 
         print()
 
+        print("=" * 60)
 
         print(
+            "ATLAS WALK FORWARD REPORT"
+        )
 
-            "REGIME PERFORMANCE"
+        print("=" * 60)
 
+
+
+        print()
+
+        print(
+            f"Total Windows: {total}"
+        )
+
+
+        print(
+            f"Passed: {passed}"
+        )
+
+
+        print(
+            f"Failed: {total-passed}"
         )
 
 
         print(
 
-            "-" * 30
+            f"Pass Rate: "
 
-        )
+            f"{(passed/total*100):.1f}%"
 
+            if total
 
+            else
 
-        for regime, data in regime_stats.items():
-
-
-            if data["windows"]:
-
-
-                print()
-
-                print(
-
-                    regime
-
-                )
-
-
-                print(
-
-                    f"Windows: {data['windows']}"
-
-                )
-
-
-                print(
-
-                    f"Profit: ${data['profit']:,.2f}"
-
-                )
-
-
-                print(
-
-                    f"Passes: {data['passes']}"
-
-                )
-
-
-
-        robustness = (
-
-            training_quality
-
-            *
-
-            0.35
-
-            +
-
-            validation_quality
-
-            *
-
-            0.40
-
-            +
-
-            stability
-
-            *
-
-            0.25
+            "Pass Rate: 0%"
 
         )
 
@@ -498,244 +419,88 @@ class ValidationReport:
 
         print()
 
+        print("-" * 60)
+
         print(
+            "COMBINED VALIDATION PERFORMANCE"
+        )
 
-            f"ROBUSTNESS SCORE: {robustness:.2f}/100"
+        print("-" * 60)
 
+
+
+        print(
+            f"Profit: {aggregate['profit']}"
         )
 
 
-
-        if robustness >= 70:
-
-            verdict = "ACCEPT"
-
-
-        elif robustness >= 50:
-
-            verdict = "NEEDS IMPROVEMENT"
+        print(
+            f"Trades: {aggregate['trades']}"
+        )
 
 
-        else:
+        print(
+            f"Win Rate: {aggregate['win_rate']}%"
+        )
 
-            verdict = "REJECT"
+
+        print(
+            f"Profit Factor: {aggregate['profit_factor']}"
+        )
 
 
 
         print()
 
+        print("-" * 60)
+
+        print(
+            "ROBUSTNESS SCORE"
+        )
+
+        print("-" * 60)
+
+
+
         print(
 
-            f"VERDICT: {verdict}"
-
-        )
-
-
-        print("=" * 50)
-
-
-
-
-    # =====================================================
-    # Scoring
-    # =====================================================
-
-    def training_quality(self):
-
-
-        score = 0
-
-
-        for result in self.results:
-
-
-            training = result.get(
-
-                "training",
-
-                {}
-
-            )
-
-
-            if training.get(
-
-                "profit",
-
-                0
-
-            ) > 0:
-
-                score += 1
-
-
-
-        return (
-
-            score
-
-            /
-
-            len(self.results)
-
-            *
-
-            100
-
-            if self.results
-
-            else 0
+            f"{self.robustness_score()}/100"
 
         )
 
 
 
-    def validation_quality(self):
+        print()
 
+        print("-" * 60)
 
-        score = 0
-
-
-        count = 0
-
-
-        for result in self.results:
-
-
-            validation = result.get(
-
-                "validation",
-
-                {}
-
-            )
-
-
-            trades = validation.get(
-
-                "total_trades",
-
-                0
-
-            )
-
-
-            if trades < 10:
-
-                continue
-
-
-
-            count += 1
-
-
-
-            if validation.get(
-
-                "profit",
-
-                0
-
-            ) > 0:
-
-                score += 1
-
-
-
-        return (
-
-            score
-
-            /
-
-            count
-
-            *
-
-            100
-
-            if count
-
-            else 0
-
+        print(
+            "REGIME ANALYSIS"
         )
 
+        print("-" * 60)
 
 
-    def stability_score(self):
+
+        for regime, data in self.regime_analysis().items():
 
 
-        scores = []
+            print()
 
-
-        for result in self.results:
-
-
-            validation = result.get(
-
-                "validation",
-
-                {}
-
+            print(
+                regime
             )
 
 
-            trades = validation.get(
-
-                "total_trades",
-
-                0
-
+            print(
+                f"Windows: {data['windows']}"
             )
 
 
-            if trades < 10:
-
-                continue
-
-
-
-            pf = min(
-
-                validation.get(
-
-                    "profit_factor",
-
-                    0
-
-                ),
-
-                5
-
-            )
-
-
-            scores.append(
-
-                pf
-
+            print(
+                f"Passes: {data['passes']}"
             )
 
 
 
-        if not scores:
-
-            return 0
-
-
-
-        average = sum(scores) / len(scores)
-
-
-
-        return min(
-
-            average
-
-            *
-
-            20,
-
-            100
-
-        )
+        print()

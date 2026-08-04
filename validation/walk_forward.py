@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.5
 
 Walk Forward Validation Engine
 
@@ -16,12 +16,11 @@ Unseen Validation
 Validation Report
 """
 
-
 from __future__ import annotations
 
 
-from optimisation.parallel_runner import ParallelOptimizer
 from optimisation.optimizer import StrategyOptimizer
+from optimisation.parallel_runner import ParallelOptimizer
 
 from backtesting.engine import BacktestEngine
 
@@ -38,14 +37,23 @@ class WalkForwardValidator:
 
 
     def __init__(
+
         self,
+
         symbol: str = "SPY",
+
         starting_cash: float = 100000.0,
-        training_size: int = 500,
-        validation_size: int = 100,
-        step_size: int = 100,
+
+        training_size: int = 1000,
+
+        validation_size: int = 250,
+
+        step_size: int = 250,
+
         expanding: bool = True,
+
         max_windows: int | None = None,
+
     ):
 
 
@@ -56,32 +64,45 @@ class WalkForwardValidator:
         self.max_windows = max_windows
 
 
+
         self.optimizer = StrategyOptimizer(
-            symbol=symbol,
-            starting_cash=starting_cash,
+
+            starting_cash=starting_cash
+
         )
 
 
         self.parallel_runner = ParallelOptimizer(
+
             use_regime_filter=True
+
         )
 
 
         self.backtester = BacktestEngine(
+
             starting_cash=starting_cash,
+
             use_regime_filter=True,
+
         )
 
 
         self.window_generator = WindowGenerator(
+
             training_size=training_size,
+
             validation_size=validation_size,
+
             step_size=step_size,
+
             expanding=expanding,
+
         )
 
 
         self.database = ValidationDatabase()
+
 
         self.regime_detector = RegimeDetector()
 
@@ -90,8 +111,9 @@ class WalkForwardValidator:
 
 
 
+
     # =====================================================
-    # RUN VALIDATION
+    # RUN WALK FORWARD
     # =====================================================
 
     def run(self):
@@ -104,13 +126,17 @@ class WalkForwardValidator:
         )
 
 
-        dataset = self.optimizer.cache.load(
+        dataset = self.backtester._get_data(
+
             self.symbol
+
         )
 
 
         windows = self.window_generator.generate(
+
             dataset
+
         )
 
 
@@ -119,19 +145,27 @@ class WalkForwardValidator:
             windows = windows[:self.max_windows]
 
 
+
         print()
 
         print(
+
             f"Windows Generated: {len(windows)}"
+
         )
+
 
 
         self.results = []
 
 
+
         for number, window in enumerate(
+
             windows,
-            start=1,
+
+            start=1
+
         ):
 
 
@@ -140,7 +174,9 @@ class WalkForwardValidator:
             print("=" * 60)
 
             print(
+
                 f"WALK FORWARD WINDOW {number}"
+
             )
 
             print("=" * 60)
@@ -148,18 +184,25 @@ class WalkForwardValidator:
 
 
             result = self.validate_window(
+
                 window
+
             )
 
 
             self.results.append(
+
                 result
+
             )
 
 
             self.database.save(
+
                 self.symbol,
-                result,
+
+                result
+
             )
 
 
@@ -167,33 +210,49 @@ class WalkForwardValidator:
 
 
 
+
+
     # =====================================================
-    # VALIDATE SINGLE WINDOW
+    # VALIDATE WINDOW
     # =====================================================
 
     def validate_window(
+
         self,
+
         window,
+
     ):
 
 
         print()
 
         print(
+
             "Optimising training period..."
+
         )
 
 
 
-        configs = self.optimizer.generate_configurations()
+        configurations = (
+
+            self.optimizer.generate_configurations()
+
+        )
 
 
 
         training_results = self.parallel_runner.run(
+
             window.training,
+
             self.symbol,
+
             self.starting_cash,
-            configs,
+
+            configurations,
+
         )
 
 
@@ -202,8 +261,11 @@ class WalkForwardValidator:
 
 
             return {
+
                 "verdict": "FAIL",
-                "reason": "NO_TRAINING_RESULTS"
+
+                "reason": "NO_RESULTS"
+
             }
 
 
@@ -212,20 +274,31 @@ class WalkForwardValidator:
 
 
             result["ranking_score"] = (
+
                 self.optimizer.calculate_score(
+
                     result
+
                 )
+
             )
 
 
 
         best = max(
+
             training_results,
+
             key=lambda x:
+
             x.get(
+
                 "ranking_score",
+
                 0
-            )
+
+            ),
+
         )
 
 
@@ -236,32 +309,47 @@ class WalkForwardValidator:
             "score_threshold":
 
                 best.get(
+
                     "score_threshold",
-                    40
+
+                    50
+
                 ),
+
 
 
             "confidence":
 
                 best.get(
+
                     "confidence",
-                    0.4
+
+                    0.5
+
                 ),
+
 
 
             "atr_stop":
 
                 best.get(
+
                     "atr_stop",
-                    4.0
+
+                    3.0
+
                 ),
+
 
 
             "atr_target":
 
                 best.get(
+
                     "atr_target",
+
                     5.0
+
                 ),
 
         }
@@ -271,37 +359,43 @@ class WalkForwardValidator:
         print()
 
         print(
+
             "LOCKED PARAMETERS"
+
         )
 
-        print(
-            parameters
-        )
+        print(parameters)
 
 
 
         print()
 
         print(
+
             "Testing unseen validation data..."
+
         )
 
 
 
-        validation = self.backtester.run(
+        validation_result = self.backtester.run(
 
             window.validation,
 
             score_threshold=
+
                 parameters["score_threshold"],
 
             confidence_threshold=
+
                 parameters["confidence"],
 
             atr_stop=
+
                 parameters["atr_stop"],
 
             atr_target=
+
                 parameters["atr_target"],
 
         )
@@ -309,22 +403,25 @@ class WalkForwardValidator:
 
 
         regime = self.regime_detector.analyse(
+
             window.validation
+
         )
 
 
 
-        training_metrics = (
-            ValidationMetrics.from_result(
-                best
-            )
+        training_metrics = ValidationMetrics.from_result(
+
+            best
+
         )
 
 
-        validation_metrics = (
-            ValidationMetrics.from_result(
-                validation
-            )
+
+        validation_metrics = ValidationMetrics.from_result(
+
+            validation_result
+
         )
 
 
@@ -346,7 +443,9 @@ class WalkForwardValidator:
         print()
 
         print(
+
             f"RESULT: {verdict}"
+
         )
 
 
@@ -359,9 +458,11 @@ class WalkForwardValidator:
                 str(window),
 
 
+
             "parameters":
 
                 parameters,
+
 
 
             "training":
@@ -369,9 +470,11 @@ class WalkForwardValidator:
                 training_metrics.to_dict(),
 
 
+
             "validation":
 
                 validation_metrics.to_dict(),
+
 
 
             "regime":
@@ -379,8 +482,46 @@ class WalkForwardValidator:
                 regime,
 
 
+
             "verdict":
 
                 verdict,
 
         }
+
+
+
+
+# =====================================================
+# COMMAND LINE ENTRY
+# =====================================================
+
+if __name__ == "__main__":
+
+
+    from validation.report import ValidationReport
+
+
+
+    validator = WalkForwardValidator(
+
+        symbol="SPY",
+
+        max_windows=5,
+
+    )
+
+
+
+    results = validator.run()
+
+
+
+    report = ValidationReport(
+
+        results
+
+    )
+
+
+    report.display()
