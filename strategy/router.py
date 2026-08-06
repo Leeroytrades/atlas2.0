@@ -1,21 +1,34 @@
 """
-Atlas AI Trading Platform 3.5
+Atlas AI Trading Platform 4.0
 
 Adaptive Strategy Router
 
 Routes detected market regimes
 to specialised strategies.
+
+Supports:
+
+- Trend markets
+- Range markets
+- Volatility markets
+- Unknown regimes
+- Future AI regime confidence
 """
 
 from __future__ import annotations
 
 
+
 from strategy.trend_strategy import TrendStrategy
 from strategy.range_strategy import RangeStrategy
+from strategy.volatility_strategy import VolatilityStrategy
+
+
 
 
 
 class StrategyRouter:
+
 
 
     def __init__(self):
@@ -34,7 +47,14 @@ class StrategyRouter:
                 RangeStrategy(),
 
 
+            "VOLATILITY":
+
+                VolatilityStrategy(),
+
+
         }
+
+
 
 
 
@@ -51,13 +71,16 @@ class StrategyRouter:
     ):
 
 
-        regime = str(regime).upper()
+
+        regime = str(regime).upper().strip()
 
 
 
-        # -----------------------------
-        # Trending markets
-        # -----------------------------
+
+
+        # =====================================================
+        # TREND CONDITIONS
+        # =====================================================
 
         if regime in (
 
@@ -67,6 +90,10 @@ class StrategyRouter:
 
             "BEARISH",
 
+            "UPTREND",
+
+            "DOWNTREND",
+
         ):
 
 
@@ -74,15 +101,19 @@ class StrategyRouter:
 
 
 
-        # -----------------------------
-        # Range markets
-        # -----------------------------
+
+
+        # =====================================================
+        # RANGE CONDITIONS
+        # =====================================================
 
         if regime in (
 
             "RANGE",
 
             "SIDEWAYS",
+
+            "CONSOLIDATION",
 
         ):
 
@@ -91,8 +122,36 @@ class StrategyRouter:
 
 
 
-        # -----------------------------
-        # Safe fallback
-        # -----------------------------
+
+
+        # =====================================================
+        # VOLATILITY CONDITIONS
+        # =====================================================
+
+        if regime in (
+
+            "VOLATILITY",
+
+            "VOLATILE",
+
+            "VOLATILE TREND",
+
+            "BREAKOUT",
+
+        ):
+
+
+            return self.strategies["VOLATILITY"]
+
+
+
+
+
+        # =====================================================
+        # SAFE DEFAULT
+        #
+        # Unknown market states should not crash
+        #
+        # =====================================================
 
         return self.strategies["TREND"]

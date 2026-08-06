@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 3.5
+Atlas AI Trading Platform 4.0
 
 Strategy Optimiser
 
@@ -18,13 +18,11 @@ from __future__ import annotations
 
 from itertools import product
 
-
 from optimisation.parallel_runner import ParallelOptimizer
 
 
 
 class StrategyOptimizer:
-
 
 
     def __init__(
@@ -40,8 +38,6 @@ class StrategyOptimizer:
 
 
         self.parallel_runner = ParallelOptimizer()
-
-
 
 
 
@@ -64,6 +60,15 @@ class StrategyOptimizer:
     ):
 
 
+        #
+        # Development defaults
+        #
+        # 5 x 3 x 2 x 4 = 120 tests
+        #
+        # Increase later for full research runs
+        #
+
+
         scores = scores or [
 
             40,
@@ -71,8 +76,6 @@ class StrategyOptimizer:
             60,
             70,
             80,
-            90,
-            100,
 
         ]
 
@@ -82,19 +85,14 @@ class StrategyOptimizer:
             0.4,
             0.5,
             0.6,
-            0.7,
-            0.8,
 
         ]
 
 
         atr_stops = atr_stops or [
 
-            2.0,
             2.5,
             3.0,
-            3.5,
-            4.0,
 
         ]
 
@@ -110,21 +108,72 @@ class StrategyOptimizer:
 
 
 
-        return list(
+        configurations = []
 
-            product(
 
-                scores,
 
-                confidences,
+        for (
 
-                atr_stops,
+            score,
 
-                atr_targets,
+            confidence,
+
+            atr_stop,
+
+            atr_target,
+
+        ) in product(
+
+            scores,
+
+            confidences,
+
+            atr_stops,
+
+            atr_targets,
+
+        ):
+
+
+            configurations.append(
+
+                {
+
+                    "score_threshold":
+
+                        score,
+
+
+                    "confidence":
+
+                        confidence,
+
+
+                    "atr_stop":
+
+                        atr_stop,
+
+
+                    "atr_target":
+
+                        atr_target,
+
+                }
 
             )
 
+
+
+        print()
+
+        print(
+
+            f"Generated {len(configurations)} optimisation configurations"
+
         )
+
+
+        return configurations
 
 
 
@@ -180,7 +229,13 @@ class StrategyOptimizer:
 
             "total_trades",
 
-            0
+            result.get(
+
+                "trades",
+
+                0
+
+            )
 
         )
 
@@ -229,24 +284,20 @@ class StrategyOptimizer:
 
         if profit_factor >= 2:
 
-
             score += 30
 
 
         elif profit_factor >= 1.5:
-
 
             score += 20
 
 
         elif profit_factor >= 1:
 
-
             score += 5
 
 
         else:
-
 
             score -= 50
 
@@ -254,29 +305,25 @@ class StrategyOptimizer:
 
 
         # =====================================
-        # DRAWDOWN PROTECTION
+        # DRAWDOWN
         # =====================================
 
         if drawdown <= 10:
-
 
             score += 30
 
 
         elif drawdown <= 20:
 
-
             score += 10
 
 
         elif drawdown > 40:
 
-
             score -= 100
 
 
         elif drawdown > 25:
-
 
             score -= 60
 
@@ -289,20 +336,15 @@ class StrategyOptimizer:
 
         if 50 <= trades <= 300:
 
-
             score += 15
-
 
 
         elif trades < 30:
 
-
             score -= 40
 
 
-
         elif trades > 500:
-
 
             score -= 50
 
@@ -315,12 +357,10 @@ class StrategyOptimizer:
 
         if win_rate >= 40:
 
-
             score += 10
 
 
         elif win_rate < 25:
-
 
             score -= 20
 
@@ -333,16 +373,12 @@ class StrategyOptimizer:
 
         if profit > 0 and drawdown > 50:
 
-
             score -= 150
-
 
 
         if profit_factor > 10:
 
-
             score -= 50
-
 
 
 
@@ -383,6 +419,16 @@ class StrategyOptimizer:
 
 
 
+        print()
+
+        print(
+
+            f"Running {len(configurations)} optimisation tests"
+
+        )
+
+
+
         results = self.parallel_runner.run(
 
             dataset,
@@ -410,7 +456,15 @@ class StrategyOptimizer:
 
         results.sort(
 
-            key=lambda x: x["ranking_score"],
+            key=lambda x:
+
+                x.get(
+
+                    "ranking_score",
+
+                    0
+
+                ),
 
             reverse=True,
 
@@ -437,7 +491,6 @@ class StrategyOptimizer:
 
 
         if not results:
-
 
             return None
 

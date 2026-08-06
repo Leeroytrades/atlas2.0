@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 3.5
+Atlas AI Trading Platform 3.6
 
 Validation Metrics
 
@@ -9,6 +9,12 @@ Used for:
 - Robustness scoring
 - Strategy acceptance
 - Overfit protection
+
+Updated:
+
+- Correct profit factor calculation
+- Trade aggregation support
+- Optimisation compatibility
 """
 
 from __future__ import annotations
@@ -51,56 +57,259 @@ class ValidationMetrics:
     ):
 
 
+        trades = result.get(
+            "trade_list",
+            result.get(
+                "trades",
+                []
+            )
+        )
+
+
+        winning = 0
+
+        losing = 0
+
+        gross_profit = 0.0
+
+        gross_loss = 0.0
+
+
+
+        # ---------------------------------
+        # Calculate from trades if available
+        # ---------------------------------
+
+        if isinstance(
+            trades,
+            list
+        ):
+
+
+            for trade in trades:
+
+
+                if isinstance(
+                    trade,
+                    dict
+                ):
+
+                    pnl = trade.get(
+                        "profit_loss",
+                        trade.get(
+                            "pnl",
+                            0
+                        )
+                    )
+
+
+                else:
+
+                    pnl = getattr(
+                        trade,
+                        "profit_loss",
+                        0
+                    )
+
+
+
+                try:
+
+                    pnl = float(
+                        pnl
+                    )
+
+                except:
+
+                    pnl = 0
+
+
+
+                if pnl > 0:
+
+                    winning += 1
+
+                    gross_profit += pnl
+
+
+                elif pnl < 0:
+
+                    losing += 1
+
+                    gross_loss += abs(
+                        pnl
+                    )
+
+
+
+            total = winning + losing
+
+
+            if total:
+
+                win_rate = (
+
+                    winning
+
+                    /
+
+                    total
+
+                    *
+
+                    100
+
+                )
+
+
+            else:
+
+                win_rate = 0
+
+
+
+            profit_factor = (
+
+                gross_profit / gross_loss
+
+                if gross_loss > 0
+
+                else 0
+
+            )
+
+
+        else:
+
+
+            total = result.get(
+
+                "total_trades",
+
+                result.get(
+
+                    "trades",
+
+                    0
+
+                )
+
+            )
+
+
+            winning = result.get(
+
+                "winning_trades",
+
+                result.get(
+
+                    "wins",
+
+                    0
+
+                )
+
+            )
+
+
+            losing = result.get(
+
+                "losing_trades",
+
+                result.get(
+
+                    "losses",
+
+                    0
+
+                )
+
+            )
+
+
+            win_rate = result.get(
+
+                "win_rate",
+
+                0
+
+            )
+
+
+            profit_factor = result.get(
+
+                "profit_factor",
+
+                0
+
+            )
+
+
+
+        profit = result.get(
+
+            "profit",
+
+            result.get(
+
+                "net_profit",
+
+                0
+
+            )
+
+        )
+
+
+
         return cls(
 
-            profit=result.get(
-                "profit",
+            profit=float(
+                profit
+            ),
+
+            win_rate=float(
+                win_rate
+            ),
+
+            profit_factor=float(
+                profit_factor
+            ),
+
+            total_trades=int(
+                total
+            ),
+
+            winning_trades=int(
+                winning
+            ),
+
+            losing_trades=int(
+                losing
+            ),
+
+            max_drawdown=float(
+
                 result.get(
-                    "net_profit",
+
+                    "max_drawdown",
+
                     0
+
                 )
+
             ),
 
+            stability_score=float(
 
-            win_rate=result.get(
-                "win_rate",
-                0
-            ),
+                result.get(
 
+                    "stability_score",
 
-            profit_factor=result.get(
-                "profit_factor",
-                0
-            ),
+                    0
 
+                )
 
-            total_trades=result.get(
-                "total_trades",
-                0
-            ),
-
-
-            winning_trades=result.get(
-                "winning_trades",
-                0
-            ),
-
-
-            losing_trades=result.get(
-                "losing_trades",
-                0
-            ),
-
-
-            max_drawdown=result.get(
-                "max_drawdown",
-                0
-            ),
-
-
-            stability_score=result.get(
-                "stability_score",
-                0
             ),
 
         )
@@ -111,16 +320,16 @@ class ValidationMetrics:
     # ROBUSTNESS SCORE
     # =====================================================
 
-    def robustness_score(self):
+    def robustness_score(
+        self,
+    ):
 
 
         score = 0
 
 
 
-        # ---------------------------------
         # Profit
-        # ---------------------------------
 
         if self.profit > 0:
 
@@ -128,9 +337,7 @@ class ValidationMetrics:
 
 
 
-        # ---------------------------------
-        # Trade sample size
-        # ---------------------------------
+        # Sample size
 
         if self.total_trades >= 100:
 
@@ -148,13 +355,16 @@ class ValidationMetrics:
 
 
 
-        # ---------------------------------
         # Profit factor
-        # ---------------------------------
 
-        if self.profit_factor >= 2:
+        if self.profit_factor >= 3:
 
             score += 25
+
+
+        elif self.profit_factor >= 2:
+
+            score += 20
 
 
         elif self.profit_factor >= 1.5:
@@ -168,9 +378,7 @@ class ValidationMetrics:
 
 
 
-        # ---------------------------------
         # Drawdown
-        # ---------------------------------
 
         if self.max_drawdown <= 10:
 
@@ -187,15 +395,8 @@ class ValidationMetrics:
             score -= 40
 
 
-        elif self.max_drawdown > 40:
 
-            score -= 80
-
-
-
-        # ---------------------------------
         # Stability
-        # ---------------------------------
 
         if self.stability_score >= 80:
 
@@ -228,14 +429,14 @@ class ValidationMetrics:
     # PASS / FAIL
     # =====================================================
 
-    def passes(self):
+    def passes(
+        self,
+    ):
 
 
         score = self.robustness_score()
 
 
-
-        # Hard safety checks
 
         if self.max_drawdown > 25:
 
@@ -260,7 +461,7 @@ class ValidationMetrics:
 
 
     # =====================================================
-    # DICT OUTPUT
+    # OUTPUT
     # =====================================================
 
     def to_dict(

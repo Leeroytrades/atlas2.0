@@ -1,17 +1,20 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 3.6
 
 Market Regime Detector
-
-Compatible with Atlas
-Walk Forward Validation.
 
 Detects:
 
 - Trend
-- Volatility
+- Range
+- Volatility expansion
 - Momentum
-- Environment
+
+Used by:
+
+Strategy Router
+Backtesting
+Walk Forward Validation
 """
 
 from __future__ import annotations
@@ -37,50 +40,63 @@ class RegimeDetector:
 
         self.dataframe = dataframe
 
-        regime = self.detect()
+
+        result = self.detect()
 
 
         return {
 
+
             "trend":
-                regime["trend"],
+
+                result["trend"],
+
 
             "volatility":
-                regime["volatility"],
+
+                result["volatility"],
+
 
             "momentum":
-                regime["momentum"],
+
+                result["momentum"],
+
 
             "regime":
-                regime["environment"],
+
+                result["environment"],
+
+
+            "confidence":
+
+                result["confidence"],
 
         }
 
 
 
-    def detect(
-        self,
-    ):
+    def detect(self):
 
 
         df = self.dataframe
 
 
+
         if df is None or len(df) < 50:
+
 
             return {
 
-                "trend":
-                    "UNKNOWN",
 
-                "volatility":
-                    "UNKNOWN",
+                "trend":"UNKNOWN",
 
-                "momentum":
-                    "UNKNOWN",
+                "volatility":"UNKNOWN",
 
-                "environment":
-                    "UNKNOWN",
+                "momentum":"UNKNOWN",
+
+                "environment":"UNKNOWN",
+
+                "confidence":0,
 
             }
 
@@ -90,27 +106,15 @@ class RegimeDetector:
 
 
 
-        # -----------------------------
+        # =============================
         # Trend
-        # -----------------------------
+        # =============================
 
 
-        ema20 = (
-            close
-            .ewm(
-                span=20
-            )
-            .mean()
-        )
+        ema20 = close.ewm(span=20).mean()
 
+        ema50 = close.ewm(span=50).mean()
 
-        ema50 = (
-            close
-            .ewm(
-                span=50
-            )
-            .mean()
-        )
 
 
         price = close.iloc[-1]
@@ -119,136 +123,168 @@ class RegimeDetector:
 
         if price > ema20.iloc[-1] > ema50.iloc[-1]:
 
-            trend = "BULLISH"
+
+            trend="BULLISH"
+
 
 
         elif price < ema20.iloc[-1] < ema50.iloc[-1]:
 
-            trend = "BEARISH"
+
+            trend="BEARISH"
+
 
 
         else:
 
-            trend = "SIDEWAYS"
+
+            trend="SIDEWAYS"
 
 
 
-        # -----------------------------
+        # =============================
         # Volatility
-        # -----------------------------
+        # =============================
+
+
+        volatility="NORMAL"
+
+        expansion=False
+
 
 
         if "ATR" in df.columns:
 
 
-            atr = float(
-                df["ATR"].iloc[-1]
+            atr=df["ATR"].iloc[-1]
+
+            atr_pct=(atr / price) * 100
+
+
+
+            if atr_pct > 3:
+
+
+                volatility="HIGH"
+
+
+
+            elif atr_pct < 1:
+
+
+                volatility="LOW"
+
+
+
+        if "BB_WIDTH" in df.columns:
+
+
+            current=df["BB_WIDTH"].iloc[-1]
+
+
+            average=(
+
+                df["BB_WIDTH"]
+
+                .rolling(50)
+
+                .mean()
+
+                .iloc[-1]
+
             )
 
 
-            atr_percent = (
 
-                atr
-
-                /
-
-                price
-
-                *
-
-                100
-
-            )
+            if current > average * 1.25:
 
 
-            if atr_percent > 3:
+                expansion=True
 
-                volatility = "HIGH"
-
-
-            elif atr_percent < 1:
-
-                volatility = "LOW"
-
-
-            else:
-
-                volatility = "NORMAL"
-
-
-        else:
-
-            volatility = "UNKNOWN"
+                volatility="EXPANDING"
 
 
 
-        # -----------------------------
+        # =============================
         # Momentum
-        # -----------------------------
+        # =============================
 
 
         if "RSI" in df.columns:
 
 
-            rsi = float(
-                df["RSI"].iloc[-1]
-            )
+            rsi=df["RSI"].iloc[-1]
 
 
             if rsi > 60:
 
-                momentum = "POSITIVE"
+
+                momentum="POSITIVE"
+
 
 
             elif rsi < 40:
 
-                momentum = "NEGATIVE"
+
+                momentum="NEGATIVE"
+
 
 
             else:
 
-                momentum = "NEUTRAL"
+
+                momentum="NEUTRAL"
+
 
 
         else:
 
-            momentum = "UNKNOWN"
+
+            momentum="UNKNOWN"
 
 
 
-        # -----------------------------
+        # =============================
         # Environment
-        # -----------------------------
+        # =============================
 
 
-        if trend == "SIDEWAYS":
-
-            environment = "RANGE"
+        if expansion:
 
 
-        elif volatility == "HIGH":
+            environment="VOLATILITY"
 
-            environment = "VOLATILE TREND"
+
+
+        elif trend=="SIDEWAYS":
+
+
+            environment="RANGE"
+
 
 
         else:
 
-            environment = "TREND"
+
+            environment="TREND"
+
+
+
+        confidence=0.75
 
 
 
         return {
 
-            "trend":
-                trend,
 
-            "volatility":
-                volatility,
+            "trend":trend,
 
-            "momentum":
-                momentum,
+            "volatility":volatility,
 
-            "environment":
-                environment,
+            "momentum":momentum,
+
+            "environment":environment,
+
+            "confidence":confidence,
 
         }

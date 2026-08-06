@@ -1,238 +1,314 @@
 """
-Atlas AI Trading Platform 3.6
+Atlas AI Trading Platform 4.0
 
 Parallel Optimisation Runner
 
-Runs multiple backtest configurations
-using multiprocessing.
+Handles optimiser configurations.
 
 Supports:
+- dict configurations
+- tuple configurations
 
-- BacktestResult objects
-- Metadata attachment
-- Walk-forward validation
-- Regime-aware strategies
 """
 
 from __future__ import annotations
 
 
-import os
-
-from concurrent.futures import (
-    ProcessPoolExecutor,
-    as_completed,
-)
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 
 from backtesting.engine import BacktestEngine
 
 
 
+# =========================================================
+# NORMALISE CONFIGURATION
+# =========================================================
+
+def normalise_configuration(configuration):
 
 
-# =====================================================
-# Single Configuration Worker
-# =====================================================
+    if isinstance(configuration, dict):
+
+        return configuration
+
+
+
+    if isinstance(configuration, tuple):
+
+        return {
+
+            "score_threshold":
+                configuration[0],
+
+            "confidence":
+                configuration[1],
+
+            "atr_stop":
+                configuration[2],
+
+            "atr_target":
+                configuration[3],
+
+        }
+
+
+
+    raise TypeError(
+
+        f"Unsupported configuration type: {type(configuration)}"
+
+    )
+
+
+
+
+
+# =========================================================
+# WORKER
+# =========================================================
 
 def run_configuration(
 
-    dataset,
+    configuration,
 
-    symbol: str,
+    dataframe,
 
-    starting_cash: float,
+    symbol,
 
-    score_threshold: int,
-
-    confidence: float,
-
-    atr_stop: float,
-
-    atr_target: float,
-
-    use_regime_filter: bool = True,
+    starting_cash,
 
 ):
 
 
-    engine = BacktestEngine(
-
-        starting_cash=starting_cash,
-
-        use_regime_filter=use_regime_filter,
-
-    )
+    try:
 
 
+        configuration = normalise_configuration(
 
-    result = engine.run(
+            configuration
 
-        dataset,
-
-        score_threshold=int(
-            score_threshold
-        ),
-
-        confidence_threshold=float(
-            confidence
-        ),
-
-        atr_stop=float(
-            atr_stop
-        ),
-
-        atr_target=float(
-            atr_target
-        ),
-
-    )
-
-
-
-    # ---------------------------------
-    # Convert result object to dict
-    # ---------------------------------
-
-    if hasattr(
-        result,
-        "to_dict"
-    ):
-
-        results = result.to_dict()
-
-
-    else:
-
-        results = dict(
-            result
         )
 
 
 
-    # ---------------------------------
-    # Attach configuration metadata
-    # ---------------------------------
-
-    results.update(
-
-        {
+        engine = BacktestEngine(
 
 
-            "score_threshold":
-
-                score_threshold,
+            starting_cash=starting_cash,
 
 
-            "confidence":
+            minimum_score=
 
-                confidence,
+                configuration.get(
+
+                    "score_threshold",
+
+                    60
+
+                ),
 
 
-            "atr_stop":
 
-                atr_stop,
+            minimum_confidence=
+
+                configuration.get(
+
+                    "confidence",
+
+                    0.60
+
+                ),
 
 
-            "atr_target":
 
-                atr_target,
+            atr_stop=
+
+                configuration.get(
+
+                    "atr_stop",
+
+                    2.0
+
+                ),
+
+
+
+            atr_target=
+
+                configuration.get(
+
+                    "atr_target",
+
+                    4.0
+
+                ),
+
+
+        )
+
+
+
+        result = engine.run(
+
+            symbol=symbol,
+
+            dataframe=dataframe,
+
+        )
+
+
+
+        simulator = result.get(
+
+            "simulator_results",
+
+            {}
+
+        )
+
+
+
+        return {
+
+
+            **configuration,
+
+
+            "net_profit":
+
+                result.get(
+
+                    "net_profit",
+
+                    0
+
+                ),
+
+
+
+            "profit_factor":
+
+                simulator.get(
+
+                    "profit_factor",
+
+                    0
+
+                ),
+
+
+
+            "win_rate":
+
+                simulator.get(
+
+                    "win_rate",
+
+                    0
+
+                ),
+
+
+
+            "trade_count":
+
+                len(
+
+                    result.get(
+
+                        "trade_list",
+
+                        []
+
+                    )
+
+                ),
+
+
+
+            "result":
+
+                result,
 
         }
 
-    )
+
+
+    except Exception as error:
+
+
+        return {
+
+
+            "error":
+
+                str(error),
+
+
+            "net_profit":
+
+                -999999,
+
+
+        }
 
 
 
-    return results
 
 
-
-
-
-# =====================================================
-# Parallel Optimiser
-# =====================================================
+# =========================================================
+# PARALLEL OPTIMIZER
+# =========================================================
 
 class ParallelOptimizer:
-
 
 
     def __init__(
 
         self,
 
-        workers: int | None = None,
+        workers: int = 16,
 
         use_regime_filter: bool = True,
 
     ):
 
 
-        self.workers = (
+        self.workers = workers
 
-            workers
-
-            or
-
-            os.cpu_count()
-
-            or
-
-            1
-
-        )
-
-
-        self.use_regime_filter = (
-
-            use_regime_filter
-
-        )
+        self.use_regime_filter = use_regime_filter
 
 
 
 
-
-    # =================================================
-    # Run Optimisation Grid
-    # =================================================
 
     def run(
 
         self,
 
-        dataset,
+        dataframe,
 
-        symbol: str,
+        symbol,
 
-        starting_cash: float,
+        starting_cash,
 
-        configurations: list[tuple],
+        configurations,
 
-    ) -> list[dict]:
-
-
-        results = []
-
-
-        total = len(
-            configurations
-        )
-
+    ):
 
 
         print()
 
         print(
 
-            f"Running {total} tests "
-
-            f"using {self.workers} workers"
+            f"Running {len(configurations)} tests using {self.workers} workers"
 
         )
 
-        print()
+
+
+        results = []
 
 
 
@@ -247,70 +323,35 @@ class ParallelOptimizer:
             futures = []
 
 
-
-            for config in configurations:
-
-
-
-                future = executor.submit(
-
-                    run_configuration,
-
-                    dataset,
-
-                    symbol,
-
-                    starting_cash,
-
-                    config[0],
-
-                    config[1],
-
-                    config[2],
-
-                    config[3],
-
-                    self.use_regime_filter,
-
-                )
+            for configuration in configurations:
 
 
                 futures.append(
-                    future
+
+                    executor.submit(
+
+                        run_configuration,
+
+                        configuration,
+
+                        dataframe,
+
+                        symbol,
+
+                        starting_cash,
+
+                    )
+
                 )
 
 
 
-            completed = 0
-
-
-
-            for future in as_completed(
-
-                futures
-
-            ):
-
-
-                result = future.result()
-
+            for future in as_completed(futures):
 
 
                 results.append(
 
-                    result
-
-                )
-
-
-
-                completed += 1
-
-
-
-                print(
-
-                    f"Completed {completed}/{total}"
+                    future.result()
 
                 )
 

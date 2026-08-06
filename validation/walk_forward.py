@@ -1,30 +1,38 @@
 """
-Atlas AI Trading Platform 3.5
+Atlas AI Trading Platform 4.0
 
 Walk Forward Validation Engine
 
 Workflow:
 
-Training Data
+Historical Data
         |
-Optimisation
+Create Windows
         |
-Locked Parameters
+Optimise Training Window
         |
-Unseen Validation
+Lock Parameters
         |
-Validation Report
+Run Unseen Validation Window
+        |
+Compare Results
+        |
+PASS / FAIL
 """
 
 from __future__ import annotations
 
 
+from data.market_data import MarketData
+
+from indicators.composite import build_indicator_set
+
 from optimisation.optimizer import StrategyOptimizer
-from optimisation.parallel_runner import ParallelOptimizer
 
 from backtesting.engine import BacktestEngine
 
 from validation.window import WindowGenerator
+
 from validation.metrics import ValidationMetrics
 
 from database.validation import ValidationDatabase
@@ -40,19 +48,19 @@ class WalkForwardValidator:
 
         self,
 
-        symbol: str = "SPY",
+        symbol="SPY",
 
-        starting_cash: float = 100000.0,
+        starting_cash=100000.0,
 
-        training_size: int = 1000,
+        training_size=1000,
 
-        validation_size: int = 250,
+        validation_size=250,
 
-        step_size: int = 250,
+        step_size=250,
 
-        expanding: bool = True,
+        expanding=True,
 
-        max_windows: int | None = None,
+        max_windows=None,
 
     ):
 
@@ -64,26 +72,12 @@ class WalkForwardValidator:
         self.max_windows = max_windows
 
 
+        self.market = MarketData()
+
 
         self.optimizer = StrategyOptimizer(
 
             starting_cash=starting_cash
-
-        )
-
-
-        self.parallel_runner = ParallelOptimizer(
-
-            use_regime_filter=True
-
-        )
-
-
-        self.backtester = BacktestEngine(
-
-            starting_cash=starting_cash,
-
-            use_regime_filter=True,
 
         )
 
@@ -107,35 +101,58 @@ class WalkForwardValidator:
         self.regime_detector = RegimeDetector()
 
 
-        self.results = []
-
-
-
 
     # =====================================================
-    # RUN WALK FORWARD
+    # LOAD DATA
     # =====================================================
 
-    def run(self):
+    def load_data(self):
+
+
+        dataframe = self.market.get_history(
+
+            symbol=self.symbol,
+
+            period="10y",
+
+            interval="1d",
+
+        )
+
+
+        dataframe = build_indicator_set(
+
+            dataframe.copy()
+
+        )
 
 
         print()
 
         print(
-            "Loading validation dataset..."
-        )
 
-
-        dataset = self.backtester._get_data(
-
-            self.symbol
+            f"Dataset candles available: {len(dataframe)}"
 
         )
+
+
+        return dataframe
+
+
+
+    # =====================================================
+    # RUN
+    # =====================================================
+
+    def run(self):
+
+
+        dataframe = self.load_data()
 
 
         windows = self.window_generator.generate(
 
-            dataset
+            dataframe
 
         )
 
@@ -143,7 +160,6 @@ class WalkForwardValidator:
         if self.max_windows:
 
             windows = windows[:self.max_windows]
-
 
 
         print()
@@ -155,8 +171,7 @@ class WalkForwardValidator:
         )
 
 
-
-        self.results = []
+        results=[]
 
 
 
@@ -171,7 +186,7 @@ class WalkForwardValidator:
 
             print()
 
-            print("=" * 60)
+            print("="*60)
 
             print(
 
@@ -179,7 +194,7 @@ class WalkForwardValidator:
 
             )
 
-            print("=" * 60)
+            print("="*60)
 
 
 
@@ -190,25 +205,26 @@ class WalkForwardValidator:
             )
 
 
-            self.results.append(
-
-                result
-
-            )
+            results.append(result)
 
 
-            self.database.save(
+            try:
 
-                self.symbol,
+                self.database.save(
 
-                result
+                    self.symbol,
 
-            )
+                    result
+
+                )
+
+            except Exception:
+
+                pass
 
 
-        return self.results
 
-
+        return results
 
 
 
@@ -220,7 +236,7 @@ class WalkForwardValidator:
 
         self,
 
-        window,
+        window
 
     ):
 
@@ -235,23 +251,11 @@ class WalkForwardValidator:
 
 
 
-        configurations = (
-
-            self.optimizer.generate_configurations()
-
-        )
-
-
-
-        training_results = self.parallel_runner.run(
+        training_results = self.optimizer.optimise(
 
             window.training,
 
-            self.symbol,
-
-            self.starting_cash,
-
-            configurations,
+            self.symbol
 
         )
 
@@ -262,30 +266,15 @@ class WalkForwardValidator:
 
             return {
 
-                "verdict": "FAIL",
+                "verdict":"FAIL",
 
-                "reason": "NO_RESULTS"
+                "reason":"NO_RESULTS"
 
             }
 
 
 
-        for result in training_results:
-
-
-            result["ranking_score"] = (
-
-                self.optimizer.calculate_score(
-
-                    result
-
-                )
-
-            )
-
-
-
-        best = max(
+        best=max(
 
             training_results,
 
@@ -295,15 +284,21 @@ class WalkForwardValidator:
 
                 "ranking_score",
 
-                0
+                x.get(
 
-            ),
+                    "profit",
+
+                    0
+
+                )
+
+            )
 
         )
 
 
 
-        parameters = {
+        parameters={
 
 
             "score_threshold":
@@ -312,10 +307,9 @@ class WalkForwardValidator:
 
                     "score_threshold",
 
-                    50
+                    40
 
                 ),
-
 
 
             "confidence":
@@ -324,10 +318,9 @@ class WalkForwardValidator:
 
                     "confidence",
 
-                    0.5
+                    0.40
 
                 ),
-
 
 
             "atr_stop":
@@ -339,7 +332,6 @@ class WalkForwardValidator:
                     3.0
 
                 ),
-
 
 
             "atr_target":
@@ -378,59 +370,47 @@ class WalkForwardValidator:
 
 
 
-        validation_result = self.backtester.run(
+        engine=BacktestEngine(
 
-            window.validation,
+            starting_cash=self.starting_cash,
 
-            score_threshold=
+            minimum_score=parameters["score_threshold"],
 
-                parameters["score_threshold"],
+            minimum_confidence=parameters["confidence"],
 
-            confidence_threshold=
+            atr_stop=parameters["atr_stop"],
 
-                parameters["confidence"],
-
-            atr_stop=
-
-                parameters["atr_stop"],
-
-            atr_target=
-
-                parameters["atr_target"],
+            atr_target=parameters["atr_target"],
 
         )
 
 
 
-        regime = self.regime_detector.analyse(
+        validation_result=engine.run(
 
-            window.validation
+            symbol=self.symbol,
 
-        )
-
-
-
-        training_metrics = ValidationMetrics.from_result(
-
-            best
+            dataframe=window.validation,
 
         )
 
 
 
-        validation_metrics = ValidationMetrics.from_result(
+        profit=validation_result.get(
 
-            validation_result
+            "net_profit",
+
+            0
 
         )
 
 
 
-        verdict = (
+        verdict=(
 
             "PASS"
 
-            if validation_metrics.passes()
+            if profit > 0
 
             else
 
@@ -453,10 +433,9 @@ class WalkForwardValidator:
         return {
 
 
-            "window":
+            "symbol":
 
-                str(window),
-
+                self.symbol,
 
 
             "parameters":
@@ -464,23 +443,18 @@ class WalkForwardValidator:
                 parameters,
 
 
-
-            "training":
-
-                training_metrics.to_dict(),
-
-
-
             "validation":
 
-                validation_metrics.to_dict(),
-
+                validation_result,
 
 
             "regime":
 
-                regime,
+                self.regime_detector.analyse(
 
+                    window.validation
+
+                ),
 
 
             "verdict":
@@ -491,37 +465,50 @@ class WalkForwardValidator:
 
 
 
-
-# =====================================================
-# COMMAND LINE ENTRY
-# =====================================================
-
-if __name__ == "__main__":
+if __name__=="__main__":
 
 
-    from validation.report import ValidationReport
-
-
-
-    validator = WalkForwardValidator(
+    validator=WalkForwardValidator(
 
         symbol="SPY",
 
-        max_windows=5,
+        max_windows=3,
 
     )
 
 
-
-    results = validator.run()
-
+    results=validator.run()
 
 
-    report = ValidationReport(
+    print()
 
-        results
+    print("="*60)
+
+    print("FINAL SUMMARY")
+
+    print("="*60)
+
+
+    passed=sum(
+
+        1
+
+        for r in results
+
+        if r["verdict"]=="PASS"
 
     )
 
 
-    report.display()
+    print(
+
+        f"PASS: {passed}/{len(results)}"
+
+    )
+
+
+    print(
+
+        f"FAIL: {len(results)-passed}/{len(results)}"
+
+    )

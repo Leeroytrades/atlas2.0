@@ -23,7 +23,7 @@ from __future__ import annotations
 import pandas as pd
 
 
-from strategies.router import StrategyRouter
+from strategy.router import StrategyRouter
 
 from research.regime_detector import RegimeDetector
 
@@ -67,6 +67,12 @@ class StrategyRunner:
         )
 
 
+        regime = "TREND"
+
+        regime_confidence = 0
+
+
+
         if isinstance(
             regime_data,
             dict
@@ -78,6 +84,15 @@ class StrategyRunner:
                 "regime",
 
                 "TREND"
+
+            )
+
+
+            regime_confidence = regime_data.get(
+
+                "confidence",
+
+                0
 
             )
 
@@ -102,11 +117,28 @@ class StrategyRunner:
 
 
 
-        return strategy.generate_signal(
+        signal = strategy.generate_signal(
 
             dataframe
 
         )
+
+
+        if signal is None:
+
+            return None
+
+
+
+        signal["regime"] = regime
+
+        signal["regime_confidence"] = regime_confidence
+
+        signal["selected_strategy"] = strategy.name
+
+
+
+        return signal
 
 
 
@@ -246,6 +278,28 @@ class StrategyRunner:
                         "signal":
 
                             bias,
+
+
+                        "regime":
+
+                            signal.get(
+
+                                "regime",
+
+                                "UNKNOWN"
+
+                            ),
+
+
+                        "strategy":
+
+                            signal.get(
+
+                                "selected_strategy",
+
+                                "UNKNOWN"
+
+                            ),
 
                     }
 

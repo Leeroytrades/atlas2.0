@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 3.5
+Atlas AI Trading Platform 4.0
 
 Backtesting Trade Simulator
 
@@ -9,25 +9,21 @@ Supports:
 
 - Long trades
 - Short trades
-- ATR stop loss
+- ATR stops
 - ATR targets
 - Breakeven protection
 - Maximum holding period
 - Commission
 - Slippage
+- Strategy attribution
+- Exit reason tracking
 
-Updated:
-
-- Standardised result output
-- Validation compatibility
-- Optimisation compatibility
 """
 
 from __future__ import annotations
 
 
-from dataclasses import dataclass
-
+from dataclasses import dataclass, field
 
 from models.trade import Trade
 
@@ -54,10 +50,16 @@ class SimulatedTrade:
     candles_held: int
 
 
-
     entry_index: int = 0
 
     exit_index: int = 0
+
+
+    strategy: str = "UNKNOWN"
+
+    exit_reason: str = "UNKNOWN"
+
+    risk_reward: float = 0.0
 
 
 
@@ -66,12 +68,19 @@ class Simulator:
 
 
     def __init__(
+
         self,
+
         starting_cash: float = 100000.0,
+
         commission: float = 1.0,
+
         slippage: float = 0.01,
+
         atr_stop: float = 2.0,
+
         atr_target: float = 4.0,
+
     ):
 
 
@@ -92,6 +101,7 @@ class Simulator:
 
         self.trades = []
 
+
         self.equity_curve = [
 
             starting_cash
@@ -100,19 +110,22 @@ class Simulator:
 
 
 
-    # =====================================================
-    # SIMULATE TRADE
-    # =====================================================
 
     def simulate_trade(
+
         self,
+
         trade: Trade,
+
         dataframe,
+
         index: int,
+
     ):
 
 
-        entry = trade.entry
+        entry = float(trade.entry)
+
 
 
         atr = float(
@@ -128,22 +141,9 @@ class Simulator:
 
 
 
-        stop_distance = (
+        stop_distance = atr * self.atr_stop
 
-            atr *
-
-            self.atr_stop
-
-        )
-
-
-        target_distance = (
-
-            atr *
-
-            self.atr_target
-
-        )
+        target_distance = atr * self.atr_target
 
 
 
@@ -153,7 +153,6 @@ class Simulator:
             stop_loss = entry - stop_distance
 
             take_profit = entry + target_distance
-
 
 
         else:
@@ -166,19 +165,34 @@ class Simulator:
 
 
 
+        risk_reward = (
+
+            target_distance /
+
+            stop_distance
+
+        )
+
+
+
+
         breakeven_trigger = atr * 1.5
 
 
         breakeven_active = False
 
 
+
         exit_price = None
+
+        exit_reason = "END_OF_DATA"
+
+
+        exit_position = index
 
 
         candles_held = 0
 
-
-        exit_index = index
 
 
 
@@ -186,24 +200,27 @@ class Simulator:
 
 
 
-        for future_index, candle in future.iterrows():
+
+        for future_position, (future_index, candle) in enumerate(
+
+            future.iterrows(),
+
+            start=index + 1
+
+        ):
 
 
             candles_held += 1
 
 
-            high = float(
-
-                candle["High"]
-
-            )
+            exit_position = future_position
 
 
-            low = float(
 
-                candle["Low"]
+            high = float(candle["High"])
 
-            )
+            low = float(candle["Low"])
+
 
 
 
@@ -216,6 +233,8 @@ class Simulator:
 
                     exit_price = take_profit
 
+                    exit_reason = "TARGET"
+
                     break
 
 
@@ -227,21 +246,28 @@ class Simulator:
 
 
 
-                if low <= stop_loss:
-
-
-                    exit_price = stop_loss
-
-                    break
-
-
 
                 if breakeven_active and low <= entry:
 
 
                     exit_price = entry
 
+                    exit_reason = "BREAKEVEN"
+
                     break
+
+
+
+
+                if low <= stop_loss:
+
+
+                    exit_price = stop_loss
+
+                    exit_reason = "STOP"
+
+                    break
+
 
 
 
@@ -254,7 +280,10 @@ class Simulator:
 
                     exit_price = take_profit
 
+                    exit_reason = "TARGET"
+
                     break
+
 
 
 
@@ -265,21 +294,28 @@ class Simulator:
 
 
 
-                if high >= stop_loss:
-
-
-                    exit_price = stop_loss
-
-                    break
-
-
 
                 if breakeven_active and high >= entry:
 
 
                     exit_price = entry
 
+                    exit_reason = "BREAKEVEN"
+
                     break
+
+
+
+
+                if high >= stop_loss:
+
+
+                    exit_price = stop_loss
+
+                    exit_reason = "STOP"
+
+                    break
+
 
 
 
@@ -292,7 +328,12 @@ class Simulator:
 
                 )
 
+
+                exit_reason = "MAX_HOLD"
+
                 break
+
+
 
 
 
@@ -304,6 +345,13 @@ class Simulator:
                 dataframe["Close"].iloc[-1]
 
             )
+
+
+            exit_position = len(dataframe)-1
+
+            exit_reason = "END_OF_DATA"
+
+
 
 
 
@@ -321,11 +369,8 @@ class Simulator:
 
 
 
-        trade.close(
+        trade.close(exit_price)
 
-            exit_price
-
-        )
 
 
 
@@ -341,6 +386,20 @@ class Simulator:
 
 
 
+
+        strategy = getattr(
+
+            trade,
+
+            "strategy",
+
+            "UNKNOWN"
+
+        )
+
+
+
+
         simulated = SimulatedTrade(
 
 
@@ -350,22 +409,10 @@ class Simulator:
             direction=trade.direction,
 
 
-            entry=round(
-
-                entry,
-
-                2
-
-            ),
+            entry=round(entry,2),
 
 
-            exit=round(
-
-                exit_price,
-
-                2
-
-            ),
+            exit=round(exit_price,2),
 
 
             quantity=trade.quantity,
@@ -390,6 +437,12 @@ class Simulator:
 
                 "LOSS"
 
+                if profit_loss < 0
+
+                else
+
+                "BREAKEVEN"
+
             ),
 
 
@@ -398,18 +451,35 @@ class Simulator:
 
             entry_index=index,
 
+
+            exit_index=exit_position,
+
+
+            strategy=strategy,
+
+
+            exit_reason=exit_reason,
+
+
+            risk_reward=round(
+
+                risk_reward,
+
+                2
+
+            ),
+
         )
 
 
 
-        self.trades.append(
 
-            simulated
+        self.trades.append(simulated)
 
-        )
 
 
         self.cash += profit_loss
+
 
 
 
@@ -426,31 +496,24 @@ class Simulator:
 
 
 
-    # =====================================================
-    # RESULTS
-    # =====================================================
 
     def results(self):
 
 
         wins = [
 
-            trade
+            t for t in self.trades
 
-            for trade in self.trades
-
-            if trade.profit_loss > 0
+            if t.profit_loss > 0
 
         ]
 
 
         losses = [
 
-            trade
+            t for t in self.trades
 
-            for trade in self.trades
-
-            if trade.profit_loss <= 0
+            if t.profit_loss < 0
 
         ]
 
@@ -458,20 +521,21 @@ class Simulator:
 
         gross_profit = sum(
 
-            trade.profit_loss
+            t.profit_loss
 
-            for trade in wins
+            for t in wins
 
         )
+
 
 
         gross_loss = abs(
 
             sum(
 
-                trade.profit_loss
+                t.profit_loss
 
-                for trade in losses
+                for t in losses
 
             )
 
@@ -479,11 +543,7 @@ class Simulator:
 
 
 
-        total = len(
-
-            self.trades
-
-        )
+        total = len(self.trades)
 
 
 
@@ -501,7 +561,15 @@ class Simulator:
 
         win_rate = (
 
-            len(wins) / total * 100
+            len(wins)
+
+            /
+
+            total
+
+            *
+
+            100
 
             if total
 
@@ -511,8 +579,8 @@ class Simulator:
 
 
 
-        return {
 
+        return {
 
 
             "starting_cash":
@@ -543,7 +611,9 @@ class Simulator:
 
                 round(
 
-                    self.cash - self.starting_cash,
+                    self.cash -
+
+                    self.starting_cash,
 
                     2
 
@@ -555,7 +625,9 @@ class Simulator:
 
                 round(
 
-                    self.cash - self.starting_cash,
+                    self.cash -
+
+                    self.starting_cash,
 
                     2
 
@@ -572,18 +644,6 @@ class Simulator:
             "trades":
 
                 total,
-
-
-
-            "winning_trades":
-
-                len(wins),
-
-
-
-            "losing_trades":
-
-                len(losses),
 
 
 
@@ -629,7 +689,9 @@ class Simulator:
 
                     (
 
-                        self.cash - self.starting_cash
+                        self.cash -
+
+                        self.starting_cash
 
                     )
 
@@ -653,14 +715,15 @@ class Simulator:
 
 
 
+            "trade_list":
+
+                self.trades,
+
         }
 
 
 
 
-    # =====================================================
-    # DRAW DOWN
-    # =====================================================
 
     def calculate_drawdown(self):
 
@@ -683,7 +746,7 @@ class Simulator:
 
             drawdown = (
 
-                (peak - value)
+                (peak-value)
 
                 /
 
