@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 4.3
+Atlas AI Trading Platform 4.4
 
 Adaptive Strategy Runner
 
@@ -27,10 +27,10 @@ Pipeline:
     Normalised Signal
         |
         v
-    Score Filter
+    Strategy Score Floor
         |
         v
-    Confidence Filter
+    Strategy Confidence Floor
         |
         v
     Final Signal
@@ -41,12 +41,19 @@ Used by:
 - Optimisation
 - Validation
 - Research
+
+Important:
+
+This class analyses ONE historical window at a time.
+
+It does not advance through historical candles itself.
 """
 
 from __future__ import annotations
 
 import pandas as pd
 
+from strategy.config import StrategyConfig
 from strategy.router import StrategyRouter
 from research.regime_detector import RegimeDetector
 
@@ -55,15 +62,22 @@ class StrategyRunner:
 
     def __init__(
         self,
-        score_threshold: int = 40,
-        confidence_threshold: float = 0.40,
+        score_threshold=None,
+        confidence_threshold=None,
     ):
 
-        self.score_threshold = float(
+        # -----------------------------------------------------
+        # Optional external thresholds.
+        #
+        # These are allowed to make the strategy stricter,
+        # but StrategyConfig always provides the minimum floor.
+        # -----------------------------------------------------
+
+        self.requested_score_threshold = (
             score_threshold
         )
 
-        self.confidence_threshold = float(
+        self.requested_confidence_threshold = (
             confidence_threshold
         )
 
@@ -71,28 +85,57 @@ class StrategyRunner:
 
         self.regime_detector = RegimeDetector()
 
-        # -------------------------------------------------
+        # -----------------------------------------------------
         # Diagnostics
-        # -------------------------------------------------
+        # -----------------------------------------------------
 
         self.total_windows = 0
+
         self.regime_blocked = 0
+
+        self.regime_confidence_blocked = 0
+
         self.strategy_attempts = 0
+
         self.signals_generated = 0
+
         self.signals_rejected_score = 0
+
         self.signals_rejected_confidence = 0
 
+        self.signals_rejected_direction = 0
+
         self.regime_counts = {
-            "BULLISH": 0,
-            "BEARISH": 0,
-            "RANGE": 0,
-            "VOLATILITY": 0,
-            "UNKNOWN": 0,
+
+            "TREND":
+                0,
+
+            "BULLISH":
+                0,
+
+            "BEARISH":
+                0,
+
+            "RANGE":
+                0,
+
+            "SIDEWAYS":
+                0,
+
+            "VOLATILITY":
+                0,
+
+            "BREAKOUT":
+                0,
+
+            "UNKNOWN":
+                0,
+
         }
 
-    # =====================================================
+    # =========================================================
     # STRATEGY NAME
-    # =====================================================
+    # =========================================================
 
     @staticmethod
     def _strategy_name(
@@ -135,9 +178,9 @@ class StrategyRunner:
 
         return "UNKNOWN"
 
-    # =====================================================
+    # =========================================================
     # ANALYSE CURRENT WINDOW
-    # =====================================================
+    # =========================================================
 
     def analyse(
         self,
@@ -148,9 +191,9 @@ class StrategyRunner:
 
         self.total_windows += 1
 
-        # -------------------------------------------------
-        # Basic validation
-        # -------------------------------------------------
+        # =====================================================
+        # BASIC VALIDATION
+        # =====================================================
 
         if (
             dataframe is None
@@ -169,9 +212,9 @@ class StrategyRunner:
 
             return None
 
-        # -------------------------------------------------
-        # Determine regime
-        # -------------------------------------------------
+        # =====================================================
+        # REGIME DETECTION
+        # =====================================================
 
         regime_data = None
 
@@ -185,7 +228,7 @@ class StrategyRunner:
                     )
                 )
 
-            except Exception as exc:
+            except Exception:
 
                 self.regime_blocked += 1
 
@@ -232,8 +275,8 @@ class StrategyRunner:
             # -------------------------------------------------
             # Explicit strategy mode.
             #
-            # This preserves compatibility for callers that
-            # intentionally supply a strategy directly.
+            # Used only by callers intentionally supplying a
+            # strategy directly.
             # -------------------------------------------------
 
             regime_name = "UNKNOWN"
@@ -271,9 +314,9 @@ class StrategyRunner:
 
                 pass
 
-        # -------------------------------------------------
-        # Record regime statistics
-        # -------------------------------------------------
+        # =====================================================
+        # RECORD REGIME
+        # =====================================================
 
         if regime_name not in self.regime_counts:
 
@@ -287,14 +330,9 @@ class StrategyRunner:
                 regime_name
             ] += 1
 
-        # -------------------------------------------------
-        # REGIME FILTER
-        #
-        # This is the critical gate.
-        #
-        # UNKNOWN/RANGE/etc. cannot reach the strategy
-        # unless the RegimeFilter explicitly allows them.
-        # -------------------------------------------------
+        # =====================================================
+        # REGIME ALLOW/DENY FILTER
+        # =====================================================
 
         if not allowed:
 
@@ -302,9 +340,49 @@ class StrategyRunner:
 
             return None
 
-        # -------------------------------------------------
-        # Select strategy
-        # -------------------------------------------------
+        # =====================================================
+        # REGIME CONFIDENCE FILTER
+        #
+        # Explicit strategy mode bypasses this because the
+        # caller has deliberately selected the strategy.
+        # =====================================================
+
+        regime_confidence = 0.0
+
+        if isinstance(
+            regime_data,
+            dict,
+        ):
+
+            try:
+
+                regime_confidence = float(
+                    regime_data.get(
+                        "confidence",
+                        0.0,
+                    )
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                regime_confidence = 0.0
+
+        if strategy is None:
+
+            if regime_confidence < (
+                StrategyConfig.MIN_REGIME_CONFIDENCE
+            ):
+
+                self.regime_confidence_blocked += 1
+
+                return None
+
+        # =====================================================
+        # SELECT STRATEGY
+        # =====================================================
 
         if strategy is None:
 
@@ -318,9 +396,9 @@ class StrategyRunner:
 
                 strategy = None
 
-        # -------------------------------------------------
-        # No strategy
-        # -------------------------------------------------
+        # =====================================================
+        # NO STRATEGY
+        # =====================================================
 
         if strategy is None:
 
@@ -328,9 +406,9 @@ class StrategyRunner:
 
             return None
 
-        # -------------------------------------------------
-        # Legacy protection
-        # -------------------------------------------------
+        # =====================================================
+        # LEGACY STRING PROTECTION
+        # =====================================================
 
         if isinstance(
             strategy,
@@ -359,9 +437,9 @@ class StrategyRunner:
 
         self.strategy_attempts += 1
 
-        # -------------------------------------------------
-        # Determine selected strategy
-        # -------------------------------------------------
+        # =====================================================
+        # STRATEGY NAME
+        # =====================================================
 
         selected_strategy_name = (
             self._strategy_name(
@@ -369,9 +447,27 @@ class StrategyRunner:
             )
         )
 
-        # -------------------------------------------------
-        # Generate signal
-        # -------------------------------------------------
+        # =====================================================
+        # STRATEGY-SPECIFIC THRESHOLDS
+        # =====================================================
+
+        effective_score_threshold = (
+            StrategyConfig.effective_score_threshold(
+                selected_strategy_name,
+                self.requested_score_threshold,
+            )
+        )
+
+        effective_confidence_threshold = (
+            StrategyConfig.effective_confidence_threshold(
+                selected_strategy_name,
+                self.requested_confidence_threshold,
+            )
+        )
+
+        # =====================================================
+        # GENERATE SIGNAL
+        # =====================================================
 
         try:
 
@@ -405,17 +501,17 @@ class StrategyRunner:
 
             return None
 
-        # -------------------------------------------------
-        # No signal
-        # -------------------------------------------------
+        # =====================================================
+        # NO SIGNAL
+        # =====================================================
 
         if signal is None:
 
             return None
 
-        # -------------------------------------------------
-        # Normalise object / dict
-        # -------------------------------------------------
+        # =====================================================
+        # NORMALISE SIGNAL
+        # =====================================================
 
         if isinstance(
             signal,
@@ -460,9 +556,9 @@ class StrategyRunner:
 
             }
 
-        # -------------------------------------------------
-        # Core fields
-        # -------------------------------------------------
+        # =====================================================
+        # CORE FIELDS
+        # =====================================================
 
         bias = normalised.get(
             "signal"
@@ -478,9 +574,9 @@ class StrategyRunner:
             0,
         )
 
-        # -------------------------------------------------
-        # Numeric safety
-        # -------------------------------------------------
+        # =====================================================
+        # NUMERIC SAFETY
+        # =====================================================
 
         try:
 
@@ -508,9 +604,9 @@ class StrategyRunner:
 
             confidence = 0.0
 
-        # -------------------------------------------------
-        # Signal normalisation
-        # -------------------------------------------------
+        # =====================================================
+        # NORMALISE DIRECTION
+        # =====================================================
 
         if isinstance(
             bias,
@@ -523,50 +619,52 @@ class StrategyRunner:
                 .strip()
             )
 
-        # -------------------------------------------------
-        # Direction check
-        # -------------------------------------------------
+        # =====================================================
+        # DIRECTION FILTER
+        # =====================================================
 
         if bias not in (
             "BUY",
             "SELL",
         ):
 
+            self.signals_rejected_direction += 1
+
             return None
 
-        # -------------------------------------------------
-        # Score filter
-        # -------------------------------------------------
+        # =====================================================
+        # SCORE FILTER
+        # =====================================================
 
         if abs(
             score
-        ) < self.score_threshold:
+        ) < effective_score_threshold:
 
             self.signals_rejected_score += 1
 
             return None
 
-        # -------------------------------------------------
-        # Confidence filter
-        # -------------------------------------------------
+        # =====================================================
+        # CONFIDENCE FILTER
+        # =====================================================
 
         if confidence < (
-            self.confidence_threshold
+            effective_confidence_threshold
         ):
 
             self.signals_rejected_confidence += 1
 
             return None
 
-        # -------------------------------------------------
-        # Successful signal
-        # -------------------------------------------------
+        # =====================================================
+        # SUCCESS
+        # =====================================================
 
         self.signals_generated += 1
 
-        # -------------------------------------------------
-        # Strategy attribution
-        # -------------------------------------------------
+        # =====================================================
+        # STRATEGY ATTRIBUTION
+        # =====================================================
 
         strategy_name = (
             self._strategy_name(
@@ -577,9 +675,9 @@ class StrategyRunner:
             )
         )
 
-        # -------------------------------------------------
-        # Build result
-        # -------------------------------------------------
+        # =====================================================
+        # RESULT
+        # =====================================================
 
         result = {
 
@@ -610,11 +708,20 @@ class StrategyRunner:
             "regime_reason":
                 reason,
 
+            "score_threshold":
+                effective_score_threshold,
+
+            "confidence_threshold":
+                effective_confidence_threshold,
+
+            "regime_confidence":
+                regime_confidence,
+
         }
 
-        # -------------------------------------------------
-        # Preserve detector diagnostics
-        # -------------------------------------------------
+        # =====================================================
+        # PRESERVE REGIME DIAGNOSTICS
+        # =====================================================
 
         if isinstance(
             regime_data,
@@ -622,6 +729,7 @@ class StrategyRunner:
         ):
 
             for key in (
+
                 "trend",
                 "volatility",
                 "momentum",
@@ -637,6 +745,7 @@ class StrategyRunner:
                 "strong_trend",
                 "macro_bullish",
                 "macro_bearish",
+
             ):
 
                 if key in regime_data:
@@ -645,22 +754,16 @@ class StrategyRunner:
                         regime_data[key]
                     )
 
-            if "confidence" in regime_data:
-
-                result[
-                    "regime_confidence"
-                ] = regime_data[
-                    "confidence"
-                ]
-
-        # -------------------------------------------------
-        # Preserve strategy metadata
-        # -------------------------------------------------
+        # =====================================================
+        # PRESERVE STRATEGY METADATA
+        # =====================================================
 
         for key in (
+
             "reason",
             "strength",
             "direction",
+
         ):
 
             if key in normalised:
@@ -669,9 +772,9 @@ class StrategyRunner:
                     normalised[key]
                 )
 
-        # -------------------------------------------------
-        # Symbol
-        # -------------------------------------------------
+        # =====================================================
+        # SYMBOL
+        # =====================================================
 
         if symbol is not None:
 
@@ -679,9 +782,9 @@ class StrategyRunner:
 
         return result
 
-    # =====================================================
+    # =========================================================
     # RUN
-    # =====================================================
+    # =========================================================
 
     def run(
         self,
@@ -691,29 +794,17 @@ class StrategyRunner:
         **kwargs,
     ):
 
-        # -------------------------------------------------
-        # Recover dataframe
-        # -------------------------------------------------
-
         if dataframe is None:
 
             dataframe = kwargs.get(
                 "data"
             )
 
-        # -------------------------------------------------
-        # Recover symbol
-        # -------------------------------------------------
-
         if symbol is None:
 
             symbol = kwargs.get(
                 "symbol"
             )
-
-        # -------------------------------------------------
-        # Legacy protection
-        # -------------------------------------------------
 
         if isinstance(
             strategy,
@@ -732,9 +823,9 @@ class StrategyRunner:
             symbol=symbol,
         )
 
-    # =====================================================
+    # =========================================================
     # DIAGNOSTICS
-    # =====================================================
+    # =========================================================
 
     def statistics(self) -> dict:
 
@@ -746,11 +837,17 @@ class StrategyRunner:
             "regime_blocked":
                 self.regime_blocked,
 
+            "regime_confidence_blocked":
+                self.regime_confidence_blocked,
+
             "strategy_attempts":
                 self.strategy_attempts,
 
             "signals_generated":
                 self.signals_generated,
+
+            "signals_rejected_direction":
+                self.signals_rejected_direction,
 
             "signals_rejected_score":
                 self.signals_rejected_score,
