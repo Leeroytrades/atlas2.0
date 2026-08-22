@@ -1,60 +1,57 @@
 """
-Atlas AI Trading Platform 4.0
+Atlas AI Trading Platform 4.2
 
-Enhanced Range Strategy
+Adaptive Range Strategy
 
 Designed for:
 
-- Sideways markets
-- Mean reversion
-- Low trend strength environments
-
-Uses:
-
-- Bollinger Bands
+- sideways markets
+- mean reversion
+- low trend strength
+- Bollinger extremes
 - RSI extremes
+
+Atlas 4.2 improvements:
+
+- Separate LONG and SHORT scoring
+- Directional mean reversion
+- Directional RSI
+- ADX range confirmation
 - SMA deviation
-- ADX filter
 - Bollinger compression
-- Mean reversion probability
-
-Changes from 3.x:
-
 - Avoids fighting strong trends
-- Requires multiple oversold/overbought confirmations
-- Reduces false range entries
-- Stronger confidence scoring
 """
 
 from __future__ import annotations
 
+import pandas as pd
 
 
 class RangeStrategy:
 
-
     name = "RangeStrategy"
 
-
-
     def generate_signal(
-
         self,
-
         dataframe,
-
     ):
 
+        if dataframe is None or len(dataframe) < 20:
+
+            return {
+                "signal": "HOLD",
+                "score": 0,
+                "confidence": 0.0,
+                "strategy": self.name,
+            }
 
         latest = dataframe.iloc[-1]
 
+        long_score = 0
+        short_score = 0
 
-        score = 0
-
-
-        confirmations = 0
-
-
+        long_confirmations = 0
+        short_confirmations = 0
 
         # =====================================================
         # ADX RANGE FILTER
@@ -62,88 +59,64 @@ class RangeStrategy:
 
         if "ADX" in dataframe.columns:
 
-
             adx = latest["ADX"]
 
+            if pd.notna(adx):
 
-            if adx < 20:
+                adx = float(adx)
 
-                score += 25
+                if adx < 20:
 
-                confirmations += 1
+                    long_score += 20
+                    short_score += 20
 
+                    long_confirmations += 1
+                    short_confirmations += 1
 
-            elif adx > 30:
+                elif adx > 30:
 
-                score -= 40
-
-
-
+                    return {
+                        "signal": "HOLD",
+                        "score": 0,
+                        "confidence": 0.0,
+                        "strategy": self.name,
+                    }
 
         # =====================================================
-        # BOLLINGER MEAN REVERSION
+        # BOLLINGER EXTREMES
         # =====================================================
 
         if all(
-
             column in dataframe.columns
-
             for column in [
-
                 "BB_UPPER",
-
                 "BB_LOWER",
-
                 "BB_MIDDLE",
-
             ]
-
         ):
 
-
-            close = latest["Close"]
-
+            close = float(latest["Close"])
 
             upper = latest["BB_UPPER"]
-
             lower = latest["BB_LOWER"]
 
-            middle = latest["BB_MIDDLE"]
+            if all(
+                pd.notna(value)
+                for value in [
+                    upper,
+                    lower,
+                ]
+            ):
 
+                if close <= lower:
 
+                    long_score += 35
+                    long_confirmations += 1
 
-            if close <= lower:
+                elif close >= upper:
 
-
-                score += 35
-
-                confirmations += 1
-
-
-
-            elif close >= upper:
-
-
-                score -= 35
-
-                confirmations += 1
-
-
-
-            elif close < middle:
-
-
-                score += 10
-
-
-
-            elif close > middle:
-
-
-                score -= 10
-
-
-
+                    short_score += 35
+                    short_confirmations += 1
 
         # =====================================================
         # RSI EXTREMES
@@ -151,43 +124,29 @@ class RangeStrategy:
 
         if "RSI" in dataframe.columns:
 
-
             rsi = latest["RSI"]
 
+            if pd.notna(rsi):
 
+                rsi = float(rsi)
 
-            if rsi < 30:
+                if rsi < 30:
 
+                    long_score += 35
+                    long_confirmations += 1
 
-                score += 35
+                elif rsi < 40:
 
-                confirmations += 1
+                    long_score += 15
 
+                elif rsi > 70:
 
+                    short_score += 35
+                    short_confirmations += 1
 
-            elif rsi < 40:
+                elif rsi > 60:
 
-
-                score += 15
-
-
-
-            elif rsi > 70:
-
-
-                score -= 35
-
-                confirmations += 1
-
-
-
-            elif rsi > 60:
-
-
-                score -= 15
-
-
-
+                    short_score += 15
 
         # =====================================================
         # DISTANCE FROM MEAN
@@ -195,141 +154,154 @@ class RangeStrategy:
 
         if "SMA_20" in dataframe.columns:
 
-
             sma = latest["SMA_20"]
-
-
             close = latest["Close"]
 
-
-
-            if sma != 0:
-
+            if (
+                pd.notna(sma)
+                and sma != 0
+            ):
 
                 deviation = (
-
                     (close - sma)
-
-                    /
-
-                    sma
-
-                    *
-
-                    100
-
+                    / abs(sma)
+                    * 100
                 )
-
-
 
                 if deviation < -2:
 
-
-                    score += 20
-
-
+                    long_score += 20
+                    long_confirmations += 1
 
                 elif deviation > 2:
 
-
-                    score -= 20
-
-
-
+                    short_score += 20
+                    short_confirmations += 1
 
         # =====================================================
-        # VOLATILITY COMPRESSION
+        # BOLLINGER COMPRESSION
         # =====================================================
 
-        if "BB_WIDTH" in dataframe.columns:
+        if (
+            "BB_WIDTH" in dataframe.columns
+            and len(dataframe) >= 50
+        ):
 
-
-            current_width = latest["BB_WIDTH"]
-
-
+            current_width = dataframe[
+                "BB_WIDTH"
+            ].iloc[-1]
 
             average_width = (
-
                 dataframe["BB_WIDTH"]
-
-                .rolling(50)
-
+                .iloc[-50:]
                 .mean()
-
-                .iloc[-1]
-
             )
 
+            if (
+                pd.notna(current_width)
+                and pd.notna(average_width)
+                and current_width < average_width
+            ):
 
+                long_score += 5
+                short_score += 5
 
-            if current_width < average_width:
+        # =====================================================
+        # EMA TREND PROTECTION
+        #
+        # Do not aggressively fade a strong trend.
+        # =====================================================
 
+        if (
+            "EMA_20" in dataframe.columns
+            and "EMA_50" in dataframe.columns
+        ):
 
-                score += 10
+            ema20 = latest["EMA_20"]
+            ema50 = latest["EMA_50"]
+            close = latest["Close"]
 
+            if all(
+                pd.notna(value)
+                for value in [
+                    ema20,
+                    ema50,
+                    close,
+                ]
+            ):
 
+                strong_bullish = (
+                    close > ema20
+                    and ema20 > ema50
+                )
 
+                strong_bearish = (
+                    close < ema20
+                    and ema20 < ema50
+                )
+
+                if strong_bullish:
+
+                    short_score -= 20
+
+                elif strong_bearish:
+
+                    long_score -= 20
+
+        # =====================================================
+        # FINAL DIRECTION
+        # =====================================================
+
+        if long_score > short_score:
+
+            score = long_score
+            confirmations = long_confirmations
+            signal = "BUY"
+
+        elif short_score > long_score:
+
+            score = short_score
+            confirmations = short_confirmations
+            signal = "SELL"
+
+        else:
+
+            score = 0
+            confirmations = 0
+            signal = "HOLD"
 
         # =====================================================
         # CONFIDENCE
         # =====================================================
 
-        confidence = min(
+        if signal != "HOLD":
 
-            (
+            confidence = min(
+                (
+                    score / 100.0
+                    + confirmations * 0.04
+                ),
+                1.0,
+            )
 
-                abs(score) / 100
+            if score < 50:
 
-                +
-
-                confirmations * 0.05
-
-            ),
-
-            1.0
-
-        )
-
-
-
-        # =====================================================
-        # SIGNAL
-        # =====================================================
-
-        if score >= 50:
-
-
-            signal = "BUY"
-
-
-
-        elif score <= -50:
-
-
-            signal = "SELL"
-
-
+                signal = "HOLD"
 
         else:
 
+            confidence = 0.0
 
-            signal = "HOLD"
-
-
-
+        # =====================================================
+        # RETURN
+        # =====================================================
 
         return {
-
-
             "signal": signal,
-
-
-            "score": score,
-
-
-            "confidence": round(confidence, 3),
-
-
+            "score": int(score),
+            "confidence": round(
+                confidence,
+                3,
+            ),
             "strategy": self.name,
-
         }

@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 3.3
+Atlas AI Trading Platform 4.1
 
 Validation Framework
 
@@ -15,13 +15,11 @@ Modules:
 """
 
 from .window import WindowGenerator
-from .walk_forward import WalkForwardValidator
 from .metrics import ValidationMetrics
 from .report import ValidationReport
 
 __all__ = [
     "WindowGenerator",
-    "WalkForwardValidator",
     "ValidationMetrics",
     "ValidationReport",
 ]

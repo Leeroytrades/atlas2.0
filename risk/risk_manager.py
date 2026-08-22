@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 2.3.4
+Atlas AI Trading Platform 4.2
 
 Risk Manager
 
@@ -9,12 +9,21 @@ Creates trade plans using:
 - ATR volatility stops
 - Dynamic position sizing
 - Reward targets
+- Historical entry-price support
+- Walk-forward ATR parameters
+
+Designed to remain backwards compatible with the
+original Atlas create_trade() interface.
 """
 
 from __future__ import annotations
 
 from models.trade import Trade
 
+
+# ============================================================
+# PRICE
+# ============================================================
 
 
 def get_current_price(df):
@@ -24,17 +33,11 @@ def get_current_price(df):
     """
 
     possible_columns = [
-
         "Close",
-
         "close",
-
         "Adj Close",
-
         "adj_close",
-
     ]
-
 
     for column in possible_columns:
 
@@ -44,32 +47,70 @@ def get_current_price(df):
                 df[column].iloc[-1]
             )
 
-
     raise ValueError(
         "No closing price column found"
     )
 
 
+# ============================================================
+# ATR
+# ============================================================
 
-def get_atr(df):
+
+def get_atr(
+    df,
+    index=None,
+):
 
     """
-    Get latest ATR value.
+    Get ATR value.
+
+    If index is supplied, ATR is taken from that
+    historical candle.
+
+    Otherwise the latest ATR is used.
+
+    This is important during backtesting because using
+    the latest ATR would introduce look-ahead bias.
     """
 
-    if "ATR" in df.columns:
+    if "ATR" not in df.columns:
 
-        atr = float(
-            df["ATR"].iloc[-1]
-        )
+        return 0.0
 
-        if atr > 0:
+    if index is None:
 
-            return atr
+        value = df["ATR"].iloc[-1]
+
+    else:
+
+        if index < 0 or index >= len(df):
+
+            return 0.0
+
+        value = df["ATR"].iloc[index]
+
+    try:
+
+        atr = float(value)
+
+    except (
+        TypeError,
+        ValueError,
+    ):
+
+        return 0.0
+
+    if atr > 0:
+
+        return atr
+
+    return 0.0
 
 
-    return 0
-
+# ============================================================
+# POSITION SIZE
+# ============================================================
 
 
 def calculate_position_size(
@@ -80,155 +121,279 @@ def calculate_position_size(
 ):
 
     """
-    Calculate position size based on risk.
+    Calculate position size based on maximum account risk.
     """
 
     risk_amount = (
-
-        account_balance
-
+        float(account_balance)
         *
-
-        (risk_percent / 100)
-
+        (float(risk_percent) / 100.0)
     )
-
 
     distance = abs(
-
-        entry - stop_loss
-
+        float(entry)
+        -
+        float(stop_loss)
     )
 
-
-    if distance == 0:
+    if distance <= 0:
 
         return 0, risk_amount
 
-
-
     quantity = int(
-
         risk_amount
-
         /
-
         distance
-
     )
-
 
     return quantity, risk_amount
 
 
+# ============================================================
+# CREATE TRADE
+# ============================================================
+
 
 def create_trade(
     symbol: str,
-    df,
-    account_balance: float,
-    risk_percent: float,
-    direction: str,
-    confidence: float,
+    df=None,
+    account_balance: float = 100000.0,
+    risk_percent: float = 1.0,
+    direction: str | None = None,
+    confidence: float = 0.0,
+    *,
+    entry: float | None = None,
+    dataframe=None,
+    index: int | None = None,
+    atr_stop: float = 2.0,
+    atr_target: float = 4.0,
 ):
 
     """
     Create a Trade object using ATR volatility.
+
+    Backwards-compatible usage:
+
+        create_trade(
+            symbol,
+            df,
+            account_balance,
+            risk_percent,
+            direction,
+            confidence,
+        )
+
+    Backtest usage:
+
+        create_trade(
+            symbol=symbol,
+            direction="LONG",
+            entry=entry_price,
+            dataframe=dataframe,
+            index=entry_index,
+            confidence=confidence,
+            atr_stop=2.5,
+            atr_target=4.0,
+        )
+
+    The explicit historical entry/index interface prevents
+    look-ahead bias during backtesting.
     """
 
-    entry = get_current_price(
-        df
-    )
+    # --------------------------------------------------------
+    # DATAFRAME ALIAS
+    # --------------------------------------------------------
 
+    if df is None:
 
-    atr = get_atr(
-        df
-    )
+        df = dataframe
 
+    if df is None:
 
-    #
-    # ATR fallback protection
-    #
-
-    if atr == 0:
-
-        atr = entry * 0.02
-
-
-
-    if direction == "LONG":
-
-
-        stop_loss = entry - (
-
-            atr * 2
-
+        raise ValueError(
+            "No dataframe supplied"
         )
 
+    # --------------------------------------------------------
+    # DIRECTION
+    # --------------------------------------------------------
 
-        take_profit = entry + (
+    if direction is None:
 
-            atr * 4
-
+        raise ValueError(
+            "Trade direction is required"
         )
 
+    direction = str(
+        direction
+    ).upper().strip()
+
+    if direction not in (
+        "LONG",
+        "SHORT",
+    ):
+
+        raise ValueError(
+            f"Invalid trade direction: {direction}"
+        )
+
+    # --------------------------------------------------------
+    # ENTRY PRICE
+    # --------------------------------------------------------
+
+    if entry is None:
+
+        entry = get_current_price(
+            df
+        )
 
     else:
 
-
-        stop_loss = entry + (
-
-            atr * 2
-
+        entry = float(
+            entry
         )
 
+    if entry <= 0:
 
-        take_profit = entry - (
-
-            atr * 4
-
+        raise ValueError(
+            "Entry price must be positive"
         )
 
+    # --------------------------------------------------------
+    # ATR
+    #
+    # During backtesting use ATR at the entry candle.
+    # --------------------------------------------------------
 
-
-    quantity, risk_amount = calculate_position_size(
-
-        account_balance,
-
-        risk_percent,
-
-        entry,
-
-        stop_loss,
-
+    atr = get_atr(
+        df,
+        index=index,
     )
 
+    # --------------------------------------------------------
+    # ATR FALLBACK
+    # --------------------------------------------------------
 
+    if atr <= 0:
+
+        atr = (
+            entry
+            *
+            0.02
+        )
+
+    # --------------------------------------------------------
+    # STOP / TARGET DISTANCE
+    # --------------------------------------------------------
+
+    stop_distance = (
+        atr
+        *
+        float(atr_stop)
+    )
+
+    target_distance = (
+        atr
+        *
+        float(atr_target)
+    )
+
+    # --------------------------------------------------------
+    # LONG
+    # --------------------------------------------------------
+
+    if direction == "LONG":
+
+        stop_loss = (
+            entry
+            -
+            stop_distance
+        )
+
+        take_profit = (
+            entry
+            +
+            target_distance
+        )
+
+    # --------------------------------------------------------
+    # SHORT
+    # --------------------------------------------------------
+
+    else:
+
+        stop_loss = (
+            entry
+            +
+            stop_distance
+        )
+
+        take_profit = (
+            entry
+            -
+            target_distance
+        )
+
+    # --------------------------------------------------------
+    # POSITION SIZE
+    # --------------------------------------------------------
+
+    quantity, risk_amount = (
+        calculate_position_size(
+            account_balance=account_balance,
+            risk_percent=risk_percent,
+            entry=entry,
+            stop_loss=stop_loss,
+        )
+    )
 
     if quantity <= 0:
 
         return None
 
+    # --------------------------------------------------------
+    # REWARD
+    # --------------------------------------------------------
 
-
-    reward_amount = abs(
-
-        take_profit - entry
-
-    ) * quantity
-
-
-
-    risk_reward = (
-
-        reward_amount / risk_amount
-
-        if risk_amount > 0
-
-        else 0
-
+    reward_amount = (
+        abs(
+            take_profit
+            -
+            entry
+        )
+        *
+        quantity
     )
 
+    # --------------------------------------------------------
+    # RISK / REWARD
+    # --------------------------------------------------------
 
+    actual_risk = (
+        abs(
+            entry
+            -
+            stop_loss
+        )
+        *
+        quantity
+    )
+
+    if actual_risk > 0:
+
+        risk_reward = (
+            reward_amount
+            /
+            actual_risk
+        )
+
+    else:
+
+        risk_reward = 0.0
+
+    # --------------------------------------------------------
+    # CREATE TRADE
+    # --------------------------------------------------------
 
     return Trade(
 
@@ -244,18 +409,16 @@ def create_trade(
 
         quantity=quantity,
 
-        risk_amount=risk_amount,
+        risk_amount=actual_risk,
 
         reward_amount=reward_amount,
 
         risk_reward=round(
-
             risk_reward,
-
-            2
-
+            2,
         ),
 
-        confidence=confidence,
-
+        confidence=float(
+            confidence
+        ),
     )

@@ -1,988 +1,353 @@
-# Atlas AI Trading Platform
+Atlas AI Trading Platform Architecture
 
-## Overview
+Version 4.0
 
-Atlas is a modular AI-assisted trading research platform built in Python.
+System Philosophy
 
-The goal of Atlas is not to blindly automate trading, but to create a complete research environment capable of:
+Atlas is designed as a research-first quantitative trading platform.
 
-* Market data ingestion
-* Technical analysis
-* Multi-factor scoring
-* Strategy generation
-* Risk management
-* Backtesting
-* Optimisation
-* Walk-forward validation
-* Regime-aware strategy selection
-* Trade simulation
-* Performance analysis
+The architecture separates:
 
-Atlas has evolved from a simple signal scanner into a full quantitative research framework.
+Data
+Analysis
+Strategy
+Risk
+Simulation
+Validation
+Research
 
-Current version:
+Each layer has a defined responsibility.
 
-**Atlas AI Trading Platform 3.5**
+High Level Architecture
+                 USER
 
----
+                  |
 
-# Core Philosophy
+               main.py
 
-Atlas is built around the idea that robust trading systems should be:
+                  |
 
-* Data driven
-* Tested on unseen data
-* Resistant to overfitting
-* Modular
-* Explainable
-* Adaptable to different market conditions
+             Atlas Engine
 
-A strategy is not considered successful because it performs well historically.
+                  |
 
-It must survive:
+        ----------------------
 
-1. Training optimisation
-2. Parameter locking
-3. Walk-forward validation
-4. Multiple market regimes
+        |                    |
 
----
+   Research Pipeline     Live Pipeline
 
-# Technology Stack
 
-## Language
 
-Python 3.12
-
-## Environment
-
-Windows 11
-
-Virtual environment:
-
-```
-.venv
-```
-
-## Main Libraries
-
-* pandas
-* numpy
-* yfinance
-* ta
-* rich
-* pytest
-
----
-
-# Running Atlas
-
-Activate environment:
-
-```
-.venv\Scripts\activate
-```
-
-Run main application:
-
-```
-python main.py
-```
-
-Run walk-forward validation:
-
-```
-python -m validation.walk_forward
-```
-
----
-
-# Current System Flow
-
-```
+Research Pipeline
 Market Data
-     |
-     v
-HistoricalData
-     |
-     v
+
+↓
+
+Data Processing
+
+↓
+
 Indicator Engine
-     |
-     v
-Strategy System
-     |
-     v
-Signal Generation
-     |
-     v
-Risk Management
-     |
-     v
-Trade Simulation
-     |
-     v
-Performance Metrics
-```
-
-Research workflow:
-
-```
-Historical Data
-
-      |
-
-Training Window
-
-      |
-
-Optimisation
-
-      |
-
-Best Parameters Locked
-
-      |
-
-Unseen Validation
-
-      |
-
-Walk Forward Report
-
-      |
-
-Robustness Decision
-```
-
----
-
-# Completed Features
-
-## Market Data
-
-Completed:
-
-* Historical price loading
-* Cached datasets
-* Multi-symbol support
-
-Current default:
-
-```
-SPY
-10 years
-Daily candles
-```
-
----
-
-## Indicators
-
-Implemented:
-
-### Trend
-
-* EMA 20
-* EMA 50
-* EMA 200
-* SMA
-* ADX
-
-### Momentum
-
-* RSI
-* MACD
-* MACD Signal
-* MACD Histogram
-* Stochastic
-
-### Volatility
-
-* ATR
-* Bollinger Bands
-* BB Width
-
-### Volume
-
-* OBV
-* CMF
-* VWAP
-
----
-
-# Strategy System
-
-Current strategies:
-
-## Trend Strategy
-
-Uses:
-
-* EMA relationship
-* MACD
-* RSI
-* Volume confirmation
-
-Outputs:
-
-* BUY
-* SELL
-* HOLD
-
----
-
-## Range Strategy
-
-Uses:
-
-* Bollinger Bands
-* RSI extremes
-* Volatility confirmation
-
-Designed for:
-
-* Sideways markets
-* Mean reversion
-
----
-
-# Optimisation System
-
-Atlas supports:
-
-* Parameter grids
-* Parallel execution
-* Multiprocessing optimisation
-
-Current optimised parameters:
-
-Example:
-
-```
-score_threshold = 40
-confidence = 0.4
-atr_stop = 4.0
-atr_target = 6.0
-```
-
----
-
-# Walk Forward Validation
-
-The validation system:
-
-1. Splits historical data into windows
-
-Example:
-
-```
-Training:
-1000 candles
-
-Validation:
-250 candles
-```
-
-2. Optimises training period
-
-3. Locks parameters
-
-4. Tests unseen validation period
-
-5. Scores robustness
-
----
-
-# Latest Successful Validation
-
-Latest result:
-
-```
-Pass Rate: 80%
-
-Windows:
-5
-
-Passed:
-4
-
-Failed:
-1
-```
-
-Combined validation:
-
-```
-Profit:
-209286.64
-
-Trades:
-181
-
-Win Rate:
-67.4%
-
-Profit Factor:
-27.34
-
-Robustness Score:
-92/100
-```
-
----
-
-# Important Development Rule
-
-When modifying Atlas:
-
-Prefer:
-
-* Full file replacements
-* Complete modules
-* Clear version progression
-
-Avoid:
-
-* Small patches
-* Hidden assumptions
-* Breaking architecture
-
----
-
-# Future Goals
-
-## Phase 1
-
-Complete strategy routing.
-
-## Phase 2
-
-Improve regime detection.
-
-## Phase 3
-
-Multiple strategies per market condition.
-
-## Phase 4
-
-Live market monitoring.
-
-## Phase 5
-
-AI explanations for every trade decision.
-
----
-
-Atlas is currently a working quantitative research platform entering the strategy intelligence phase.
-# Atlas AI Trading Platform Architecture
-
-## System Overview
-
-Atlas follows a modular architecture.
-
-Major layers:
-
-```
-                 Atlas Engine
-
-                      |
-
- ------------------------------------------------
-
- Data Layer
-
- Indicator Layer
-
- Strategy Layer
-
- Risk Layer
-
- Backtesting Layer
-
- Optimisation Layer
-
- Validation Layer
-
- Reporting Layer
-
- ------------------------------------------------
-```
-
----
-
-# Directory Structure
-
-```
-Atlas/
-
-├── atlas/
-│
-│   ├── engine.py
-│   ├── session.py
-│   ├── watchlist.py
-│   └── portfolio.py
-│
-
-├── data/
-│
-│   └── market_data.py
-│
-
-├── indicators/
-│
-│   ├── trend.py
-│   ├── momentum.py
-│   ├── volatility.py
-│   ├── volume.py
-│   └── composite.py
-│
-
-├── strategy/
-│
-│   ├── signal_generator.py
-│   ├── trend_strategy.py
-│   ├── range_strategy.py
-│   ├── volatility_strategy.py
-│   └── regime_filter.py
-│
-
-├── risk/
-│
-│   ├── risk_manager.py
-│   └── trade.py
-│
-
-├── backtesting/
-│
-│   ├── engine.py
-│   ├── simulator.py
-│   ├── historical_data.py
-│   └── strategy_runner.py
-│
-
-├── optimisation/
-│
-│   ├── optimizer.py
-│   └── parallel_runner.py
-│
-
-├── validation/
-│
-│   ├── walk_forward.py
-│   ├── window.py
-│   ├── metrics.py
-│   └── report.py
-│
-
-├── research/
-│
-│   └── regime_detector.py
-│
-
-└── database/
-
-    └── validation.py
-```
-
----
-
-# Component Responsibilities
-
-## Atlas Engine
-
-Main application controller.
-
-Responsible for:
-
-* Starting sessions
-* Running scans
-* Connecting modules
-
----
-
-# Data Layer
-
-Responsible for:
-
-* Downloading data
-* Formatting candles
-* Historical storage
-
-Output:
-
-Pandas DataFrame
-
----
-
-# Indicator Engine
-
-Transforms raw OHLCV data into analytical features.
-
-Example:
-
-Input:
-
-```
-Open
-High
-Low
-Close
-Volume
-```
-
-Output:
-
-```
-EMA_20
-RSI
-MACD
-ATR
-BB_WIDTH
-```
-
----
-
-# Strategy Layer
-
-Strategies analyse indicators.
-
-Each strategy returns:
-
-```
-{
- signal,
- score,
- confidence,
- strategy
-}
-```
-
-Example:
-
-```
-BUY
-score: 65
-confidence: 0.65
-```
-
----
-
-# Regime Detection
-
-Purpose:
-
-Identify market environment.
-
-Current classifications:
-
-```
-TREND
-
-RANGE
-```
-
-Based on:
-
-* Trend strength
-* Volatility
-* Momentum
-
----
-
-# Backtesting Engine
-
-Responsible for:
-
-* Running historical simulations
-* Applying parameters
-* Creating trades
-* Measuring results
-
-Supports:
-
-* Long trades
-* Short trades
-* ATR stops
-* ATR targets
-
----
-
-# Optimisation Layer
-
-Tests parameter combinations.
-
-Example:
-
-```
-score threshold
-
-confidence
-
-ATR stop
-
-ATR target
-```
-
-Uses multiprocessing.
-
-Current optimisation sizes:
-
-300-700+ configurations.
-
----
-
-# Validation Layer
-
-The most important robustness component.
-
-Flow:
-
-```
-Training Data
 
 ↓
 
-Optimisation
+Regime Detection
 
 ↓
-
-Best Parameters
-
-↓
-
-Validation Data
-
-↓
-
-PASS / FAIL
-```
-
-A strategy must prove itself on unseen data.
-
----
-
-# Current Weaknesses
-
-## Strategy Routing
-
-Router exists but needs completion.
-
-Current:
-
-```
-TREND -> TrendStrategy
-
-RANGE -> RangeStrategy
-```
-
-Needs:
-
-* Volatility strategy
-* Dynamic switching
-* Better regime confidence
-
----
-
-## Validation
-
-Current system:
-
-Strong in trending markets.
-
-Weak area:
-
-Sideways normal volatility.
-
----
-
-# Future Architecture
-
-Target:
-
-```
-Market
-
- |
-
-Regime Detector
-
- |
 
 Strategy Router
 
- |
+↓
 
-Specialised Strategy
+Signal Generation
 
- |
+↓
 
 Risk Engine
 
- |
+↓
 
-Execution Layer
+Trade Model
 
- |
+↓
 
-Learning Feedback
-```
+Simulator
 
----
+↓
 
-Atlas is moving from a single strategy optimiser into a multi-strategy adaptive research platform.
-# Atlas AI Trading Platform 3.5
+Performance Metrics
 
-# Project Status
+↓
 
-Date:
+Optimisation
 
-August 2026
+↓
 
----
+Validation
 
-# Current Status
+↓
 
-Atlas is operational.
+Research Reports
+Core Modules
+Data Layer
 
-The system can:
+Location:
 
-✅ Load historical market data
+data/
 
-✅ Calculate indicators
+Responsible for:
 
-✅ Generate signals
+Market downloads
+Historical candles
+Data formatting
 
-✅ Backtest strategies
+Main class:
 
-✅ Optimise parameters
+MarketData
+Indicator Layer
 
-✅ Run multiprocessing optimisation
+Location:
 
-✅ Perform walk-forward validation
+indicators/
 
-✅ Produce robustness reports
+Responsible for:
 
----
+Technical calculations
+Feature generation
 
-# Completed Milestones
+Output:
 
-## Atlas 1.x
+Enhanced dataframe containing:
 
-Completed:
+Price
+Volume
+Trend metrics
+Momentum metrics
+Volatility metrics
+Strategy Layer
 
-* Basic scanner
-* Market data
-* Indicators
-* Signals
+Location:
 
----
+strategy/
 
-## Atlas 2.x
+Contains:
 
-Completed:
+router.py
 
-* Portfolio system
-* Risk management
-* Trade models
-* SQLite storage
-* Dashboard
-* Trade monitoring
+Chooses appropriate strategy.
 
----
+Strategies receive:
 
-## Atlas 3.x
+Market data
+Indicators
+Regime information
 
-Completed:
+Return:
 
-* Backtesting engine
-* Strategy runner
-* Optimisation framework
-* Parallel optimisation
-* Walk-forward validation
-* Regime analysis
+signal
+score
+confidence
+Risk Layer
 
----
+Responsible for:
 
-# Current Validation Results
+Position sizing
+Stop placement
+Target placement
+Capital protection
 
-Latest successful run:
+Current model:
 
-```
-Parameters:
+ATR based risk.
 
-score_threshold:
-40
+Backtesting Layer
 
-confidence:
-0.4
+Location:
 
-ATR stop:
-4.0
+backtesting/
 
-ATR target:
-6.0
-```
+Components:
 
----
+engine.py
 
-Performance:
+simulator.py
 
-```
-Validation Windows:
-5
+Engine:
 
-Passed:
-4
+Controls research execution.
 
-Failed:
-1
+Simulator:
 
-Pass Rate:
-80%
+Controls trade outcome simulation.
 
-Robustness:
-92/100
-```
+Optimisation Layer
 
----
+Location:
 
-Combined validation:
+optimisation/
 
-```
-Profit:
-209286.64
+Components:
 
-Trades:
-181
+optimizer.py
 
-Win Rate:
-67.4%
+parallel_runner.py
 
-Profit Factor:
-27.34
-```
+Purpose:
 
----
+Search parameter space.
 
-# Known Issue
+Uses:
 
-One validation window still fails.
+ProcessPoolExecutor
 
-The failure occurs mainly during:
+Current:
 
-```
-SIDEWAYS
-NORMAL VOLATILITY
-```
+16 workers
+Validation Layer
 
-Current weakness:
+Location:
 
-* Range handling
-* Strategy switching
-* Market regime transitions
+validation/
 
----
+Components:
 
-# Immediate Next Task
+walk_forward.py
 
-## 1. Complete Strategy Router
+window.py
 
-Implement:
+metrics.py
 
-```
-Regime
- |
- v
+report.py
+
+Purpose:
+
+Prevent overfitting.
+
+Research Layer
+
+Location:
+
+research/
+
+Contains:
+
+monte_carlo.py
+
+Purpose:
+
+Statistical robustness testing.
+
+Current Data Flow
+
+Example:
+
+SPY candles
+
+↓
+
+MarketData
+
+↓
+
+build_indicator_set()
+
+↓
+
+RegimeFilter
+
+↓
+
 StrategyRouter
- |
- + TrendStrategy
- |
- + RangeStrategy
- |
- + VolatilityStrategy
-```
 
-The router should:
+↓
 
-* Select correct strategy
-* Compare confidence
-* Return strongest signal
+Signal
 
----
+↓
 
-## 2. Improve Regime Detection
+Trade()
 
-Add:
+↓
 
-* Confidence score
-* Transition detection
-* Volatility states
+Simulator
 
----
+↓
 
-## 3. Re-run Walk Forward
+Metrics
 
-Target:
+↓
 
-```
-90%+ pass rate
-```
+Optimizer
 
-with:
+↓
 
-* Lower drawdown
-* Stable profit factor
-* Consistent performance
+Walk Forward
 
----
+↓
 
-# Development Rules
+Monte Carlo
+
+↓
+
+Report
+Future Architecture
+
+Planned:
+
+Live Market Data
+
+↓
+
+Real Time Engine
+
+↓
+
+Signal Service
+
+↓
+
+Risk Service
+
+↓
+
+Broker API
+
+↓
+
+Execution Engine
+
+↓
+
+Portfolio Manager
+
+↓
+
+Monitoring Dashboard
+White Paper Architecture
+
+Eventually document:
+
+Strategy philosophy
+Research methodology
+Validation methodology
+Optimisation process
+Risk framework
+Monte Carlo analysis
+Limitations
+Future improvements
+Important Design Rules
+
+Never:
+
+Optimise and test on same data.
+Trust single backtests.
+Deploy without validation.
+Judge strategy on profit alone.
 
 Always:
 
-* Replace whole files when changing modules
-* Keep architecture modular
-* Test after changes
-* Update this document after major milestones
-
----
-
-# Current Development Priority
-
-Priority order:
-
-1. Strategy Router
-2. Volatility Strategy
-3. Regime confidence
-4. Adaptive optimisation
-5. Live monitoring
-
----
-
-# Session Restart Instructions
-
-Next session:
-
-1. Read:
-
-```
-README.md
-ARCHITECTURE.md
-PROJECT_STATUS.md
-```
-
-2. Check:
-
-```
-strategy/
-```
-
-3. Continue from:
-
-```
-Strategy Router completion
-```
-
-Current Atlas state:
-
-A working research platform ready for adaptive multi-strategy development.
+Test unseen periods.
+Measure drawdown.
+Analyse robustness.
+Track failures.

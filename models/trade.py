@@ -1,9 +1,12 @@
 """
-Atlas AI Trading Platform
+Atlas AI Trading Platform 4.2
 
 Trade Model
 
 This is the canonical Trade object used throughout Atlas.
+
+The Trade model carries the complete lifecycle state of a
+simulated or live trade, including strategy attribution.
 """
 
 from __future__ import annotations
@@ -19,32 +22,78 @@ class Trade:
     Represents a single trade.
     """
 
-    # Database ID
+    # =========================================================
+    # DATABASE ID
+    # =========================================================
+
     id: Optional[int] = None
 
-    # Instrument
+    # =========================================================
+    # INSTRUMENT
+    # =========================================================
+
     symbol: str = ""
+
+    # =========================================================
+    # DIRECTION
+    # =========================================================
 
     # LONG or SHORT
     direction: str = "LONG"
 
-    # Prices
+    # =========================================================
+    # PRICES
+    # =========================================================
+
     entry: float = 0.0
+
     stop_loss: float = 0.0
+
     take_profit: float = 0.0
 
-    # Position
+    # =========================================================
+    # POSITION
+    # =========================================================
+
     quantity: int = 0
 
-    # Risk
+    # =========================================================
+    # RISK
+    # =========================================================
+
     risk_amount: float = 0.0
+
     reward_amount: float = 0.0
+
     risk_reward: float = 0.0
 
-    # Confidence
+    # =========================================================
+    # CONFIDENCE
+    # =========================================================
+
     confidence: float = 0.0
 
-    # Lifecycle
+    # =========================================================
+    # STRATEGY ATTRIBUTION
+    # =========================================================
+
+    # Actual strategy responsible for generating the trade.
+    #
+    # Examples:
+    #
+    #   TrendStrategy
+    #   RangeStrategy
+    #   VolatilityStrategy
+    #
+    # This field is intentionally part of the canonical Trade
+    # object because the backtester needs to preserve strategy
+    # attribution from signal generation through to diagnostics.
+    strategy: str = "UNKNOWN"
+
+    # =========================================================
+    # LIFECYCLE
+    # =========================================================
+
     status: str = "OPEN"
 
     opened: datetime = field(
@@ -53,31 +102,67 @@ class Trade:
 
     closed: Optional[datetime] = None
 
-    # Results
+    # =========================================================
+    # RESULTS
+    # =========================================================
+
     exit_price: Optional[float] = None
 
     profit_loss: float = 0.0
 
-    # Notes
+    # =========================================================
+    # NOTES
+    # =========================================================
+
     notes: str = ""
+
+    # =========================================================
+    # STATUS PROPERTIES
+    # =========================================================
 
     @property
     def is_open(self) -> bool:
+        """
+        Return True when the trade is currently open.
+        """
+
         return self.status == "OPEN"
 
     @property
     def is_closed(self) -> bool:
+        """
+        Return True when the trade is closed.
+        """
+
         return self.status == "CLOSED"
+
+    # =========================================================
+    # DURATION
+    # =========================================================
 
     @property
     def duration(self):
         """
-        Length of trade.
+        Return the duration of the trade.
         """
-        if self.closed is None:
-            return datetime.now() - self.opened
 
-        return self.closed - self.opened
+        if self.closed is None:
+
+            return (
+                datetime.now()
+                -
+                self.opened
+            )
+
+        return (
+            self.closed
+            -
+            self.opened
+        )
+
+    # =========================================================
+    # CLOSE TRADE
+    # =========================================================
 
     def close(
         self,
@@ -97,66 +182,105 @@ class Trade:
 
             self.profit_loss = round(
 
-                (exit_price - self.entry)
-                * self.quantity,
+                (
+                    exit_price
+                    -
+                    self.entry
+                )
+                *
+                self.quantity,
 
                 2
-
             )
 
         else:
 
             self.profit_loss = round(
 
-                (self.entry - exit_price)
-                * self.quantity,
+                (
+                    self.entry
+                    -
+                    exit_price
+                )
+                *
+                self.quantity,
 
                 2
-
             )
+
+    # =========================================================
+    # SERIALISATION
+    # =========================================================
 
     def to_dict(self) -> dict:
         """
-        Convert trade to dictionary.
+        Convert the trade to a dictionary.
+
+        Strategy attribution is included so that database
+        persistence and research diagnostics retain the
+        originating strategy.
         """
 
         return {
 
-            "id": self.id,
+            "id":
+                self.id,
 
-            "symbol": self.symbol,
+            "symbol":
+                self.symbol,
 
-            "direction": self.direction,
+            "direction":
+                self.direction,
 
-            "entry": self.entry,
+            "entry":
+                self.entry,
 
-            "stop_loss": self.stop_loss,
+            "stop_loss":
+                self.stop_loss,
 
-            "take_profit": self.take_profit,
+            "take_profit":
+                self.take_profit,
 
-            "quantity": self.quantity,
+            "quantity":
+                self.quantity,
 
-            "risk_amount": self.risk_amount,
+            "risk_amount":
+                self.risk_amount,
 
-            "reward_amount": self.reward_amount,
+            "reward_amount":
+                self.reward_amount,
 
-            "risk_reward": self.risk_reward,
+            "risk_reward":
+                self.risk_reward,
 
-            "confidence": self.confidence,
+            "confidence":
+                self.confidence,
 
-            "status": self.status,
+            "strategy":
+                self.strategy,
 
-            "opened": self.opened,
+            "status":
+                self.status,
 
-            "closed": self.closed,
+            "opened":
+                self.opened,
 
-            "exit_price": self.exit_price,
+            "closed":
+                self.closed,
 
-            "profit_loss": self.profit_loss,
+            "exit_price":
+                self.exit_price,
 
-            "notes": self.notes,
+            "profit_loss":
+                self.profit_loss,
 
+            "notes":
+                self.notes,
         }
+
+    # =========================================================
+    # STRING REPRESENTATION
+    # =========================================================
 
     def __str__(self) -> str:
 
@@ -168,6 +292,9 @@ class Trade:
 
             f"{self.status} "
 
-            f"P/L: {self.profit_loss:.2f}"
+            f"{self.strategy} "
+
+            f"P/L: "
+            f"{self.profit_loss:.2f}"
 
         )

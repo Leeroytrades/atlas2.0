@@ -1,488 +1,440 @@
 Atlas AI Trading Platform
-README.md
+Professional Algorithmic Trading Research Platform
 
-Version: Atlas 3.5
-Project Type: Algorithmic Trading Research Platform
-Language: Python 3.12
-Environment: Windows 11 + Python Virtual Environment
-Status: Active Development
+Version: 4.0 Development Branch
 
-1. Overview
+Overview
 
-Atlas is an AI-assisted algorithmic trading research platform designed to discover, test, validate, and eventually deploy systematic trading strategies.
+Atlas AI Trading Platform is a modular quantitative trading research system designed to investigate, validate and improve algorithmic trading strategies.
 
-The goal of Atlas is not simply to generate buy/sell signals, but to create a complete trading intelligence framework capable of:
+The project has evolved from a simple market scanner into a complete research pipeline containing:
 
-Market analysis
-Technical indicator processing
+Market data acquisition
+Technical analysis
 Signal generation
+Strategy routing
+Market regime detection
 Risk management
-Historical simulation
+Backtesting
 Strategy optimisation
 Walk-forward validation
-Regime detection
-Adaptive strategy selection
-Portfolio intelligence
+Monte Carlo robustness testing
+Research reporting
 
-Atlas has evolved from a basic trading assistant into a research platform capable of testing whether strategies survive unseen market conditions.
+The core philosophy is:
 
-2. Current Version
-Atlas 3.5
+A strategy is not considered valid because it made money historically. It must survive optimisation, unseen data testing and robustness analysis.
 
-Current development milestone:
+Atlas is designed around professional quantitative research principles:
 
-Adaptive Strategy Research Phase
-
-Completed:
-
-✅ Market data engine
-✅ Indicator framework
-✅ Composite scoring
-✅ Signal generation
-✅ Risk management
-✅ Trade simulation
-✅ Portfolio tracking
-✅ SQLite persistence
-✅ Backtesting engine
-✅ Parameter optimisation
-✅ Parallel optimisation
-✅ Walk-forward validation
-✅ Regime detection framework
-✅ Trend strategy
-✅ Range strategy
-
-Currently developing:
-
-🔄 Adaptive strategy router
-🔄 Volatility strategy
-🔄 Multi-regime execution engine
-
-3. Core Philosophy
-
-Atlas follows several principles:
-
-3.1 Avoid Overfitting
-
-A strategy that performs perfectly on historical data but fails on unseen data is considered unsuccessful.
-
-Atlas therefore uses:
-
-Training periods
-Optimisation
-Locked parameters
-Unseen validation periods
-Walk-forward testing
-3.2 Optimise for Robustness
-
-The objective is not maximum profit.
-
-The objective is:
-
-Find strategies that maintain an edge across different market conditions.
-
-Metrics considered:
-
-Profit factor
-Drawdown
-Win rate
-Trade frequency
-Stability
-Validation performance
-3.3 Modular Architecture
-
-Each component is independent.
-
-Example:
-
+Avoid overfitting.
+Test on unseen data.
+Validate parameter stability.
+Measure downside risk.
+Separate research from live execution.
+Current Development Status
+Completed Systems
 Market Data
-      |
-      v
-Indicators
-      |
-      v
-Regime Detection
-      |
-      v
-Strategy Selection
-      |
-      v
-Signal Generation
-      |
-      v
-Risk Management
-      |
-      v
-Execution Simulation
-      |
-      v
-Performance Analysis
-4. Current Performance
 
-Latest successful walk-forward validation:
+Implemented:
 
-==================================================
-ATLAS WALK FORWARD REPORT
-==================================================
+Historical data loading
+Multi-symbol support
+Data preparation pipeline
+Indicator integration
 
-Total Windows: 5
+Current primary research market:
 
-Passed: 4
-Failed: 1
+Symbol:
+SPY
 
-Pass Rate:
-80%
+Dataset:
+10 years daily data
 
-Robustness Score:
-92/100
-Combined Validation Performance
-Profit:
-209286.64
+Candles:
+2512
+Technical Analysis Engine
 
-Trades:
-181
+Implemented indicators:
 
-Win Rate:
-67.4%
-
-Profit Factor:
-27.34
-Locked Parameters
-
-Current best discovered configuration:
-
-{
-    "score_threshold": 40,
-    "confidence": 0.4,
-    "atr_stop": 4.0,
-    "atr_target": 6.0
-}
-5. Technology Stack
-Core
-Python 3.12
-Data
-pandas
-numpy
-yfinance
-Technical Analysis
-ta
-
-Indicators include:
-
-EMA
+Trend
 SMA
+EMA
+ADX
+Trend strength
+Momentum
 RSI
 MACD
+Volatility
 ATR
 Bollinger Bands
+Volume
 OBV
 CMF
 VWAP
-ADX
-Interface
-rich
 
-Used for:
+Indicators are combined through:
 
-dashboards
-reports
-console output
-Storage
-SQLite
+indicators/composite.py
+Strategy System
 
-Used for:
+Atlas uses a modular strategy architecture.
 
-trades
-validation results
-research history
-6. Installation
+Pipeline:
 
-Create environment:
+Market Data
 
-python -m venv .venv
+↓
 
-Activate:
+Indicators
 
-.venv\Scripts\activate
+↓
 
-Install dependencies:
+Regime Detection
 
-pip install pandas numpy yfinance ta rich pytest pyarrow
-7. Running Atlas
-Main Application
-python main.py
-Run Walk Forward Validation
-python -m validation.walk_forward
-Run Optimisation
-python -m optimisation.optimizer
-8. Project Structure
+↓
 
-Current structure:
+Strategy Router
 
-Atlas/
+↓
 
-│
-├── atlas/
-│   ├── engine.py
-│   ├── session.py
-│   ├── portfolio.py
-│   └── watchlist.py
-│
-├── backtesting/
-│   ├── engine.py
-│   ├── simulator.py
-│   ├── historical_data.py
-│   └── strategy_runner.py
-│
-├── data/
-│   └── market_data.py
-│
-├── indicators/
-│   ├── composite.py
-│   ├── trend.py
-│   ├── momentum.py
-│   ├── volatility.py
-│   └── volume.py
-│
-├── optimisation/
-│   ├── optimizer.py
-│   └── parallel_runner.py
-│
-├── validation/
-│   ├── walk_forward.py
-│   ├── window.py
-│   ├── metrics.py
-│   └── report.py
-│
-├── strategy/
-│   ├── signal_generator.py
-│   ├── trend_strategy.py
-│   ├── range_strategy.py
-│   ├── volatility_strategy.py
-│   ├── regime_filter.py
-│   └── router.py
-│
-├── risk/
-│   ├── risk_manager.py
-│   └── trade.py
-│
-├── database/
-│   ├── database.py
-│   ├── trades.py
-│   └── validation.py
-│
-└── main.py
-9. Current Strategy System
+Strategy Selection
 
-Atlas currently supports:
+↓
 
-Trend Strategy
+Signal Generation
 
-Designed for:
+↓
 
-BULLISH
-BEARISH
-TREND
+Validation
 
-Uses:
+↓
 
-EMA alignment
-MACD
-RSI
-OBV
-Range Strategy
+Trade Creation
 
-Designed for:
+Strategies are selected dynamically depending on market conditions.
 
-SIDEWAYS
-RANGE
+Regime Detection
 
-Uses:
+Implemented:
 
-Bollinger Bands
-RSI extremes
-Volatility compression
-Volatility Strategy
-
-Planned.
+Trend detection
+Range detection
+Volatility filtering
 
 Purpose:
 
-Handle:
+Avoid forcing the wrong strategy into unsuitable market conditions.
 
-breakout environments
-volatility expansion
-abnormal market conditions
-10. Walk Forward Validation
+Example:
 
-Atlas validation process:
+Trending market:
+
+Trend Strategy
+
+Sideways market:
+
+Range Strategy
+
+High volatility:
+
+Risk adjusted behaviour
+Backtesting Engine
+
+Location:
+
+backtesting/
+
+Pipeline:
+
+Historical Candles
+
+↓
+
+Indicators
+
+↓
+
+Regime Filter
+
+↓
+
+Strategy Router
+
+↓
+
+Signal
+
+↓
+
+Risk Calculation
+
+↓
+
+Trade Object
+
+↓
+
+Simulator
+
+↓
+
+Performance Metrics
+
+Current features:
+
+Long trades
+Short trades
+ATR stops
+ATR targets
+Position sizing
+Equity tracking
+Drawdown calculation
+Trade history
+Strategy Optimisation
+
+Location:
+
+optimisation/
+
+The optimiser searches parameter combinations.
+
+Current parameters:
+
+Signal Score
+40-100
+Confidence
+0.4-0.8
+ATR Stop
+2.0-4.0
+ATR Target
+4.0-6.0
+
+Current optimisation:
+
+700 configurations
+16 parallel workers
+
+Ranking considers:
+
+Profit
+Profit factor
+Drawdown
+Trade quantity
+Win rate
+Overfit protection
+Walk Forward Validation
+
+Location:
+
+validation/
+
+Purpose:
+
+Test whether optimised parameters survive unseen market conditions.
+
+Workflow:
 
 Historical Data
 
-        |
-        v
+↓
 
-Split into windows
+Training Window
 
-        |
-        v
+↓
 
-Training Period
+Optimisation
 
-        |
-        v
-
-Optimise Parameters
-
-        |
-        v
+↓
 
 Lock Parameters
 
-        |
-        v
+↓
 
-Unseen Validation Period
+Validation Window
 
-        |
-        v
+↓
+
+Performance Test
+
+↓
 
 PASS / FAIL
 
-Example:
+Current configuration:
 
 Training:
 1000 candles
 
 Validation:
 250 candles
-11. Current Known Issue
 
-The adaptive router exists but is not fully connected.
+Step:
+250 candles
 
-Current flow:
+Windows:
+6 generated
 
-BacktestEngine
+Testing:
+3 windows
 
-      |
-      v
+Recent result:
 
-StrategyRunner
+PASS: 2/3
+FAIL: 1/3
 
-      |
-      v
+This is a significant milestone because the strategy is no longer simply curve-fitted.
 
-Signals
+Monte Carlo Analysis
 
-Target flow:
+Location:
 
-BacktestEngine
+research/monte_carlo.py
 
-      |
-      v
+Purpose:
 
-RegimeDetector
+Determine whether performance depends on lucky trade ordering.
 
-      |
-      v
+Method:
 
-StrategyRouter
+Take historical trades.
+Bootstrap sample trade results.
+Randomise order.
+Rebuild equity curves.
+Measure outcomes.
 
-      |
-      +---- TrendStrategy
-      |
-      +---- RangeStrategy
-      |
-      +---- VolatilityStrategy
+Metrics:
 
-      |
-      v
+Average return
+Median return
+Worst case
+Best case
+5th percentile
+95th percentile
+Drawdown probability
+Loss probability
+Robustness score
 
-Signals
-12. Development Priorities
-Priority 1
+Latest meaningful result:
 
-Complete StrategyRouter integration.
+Trades Tested:
+106
 
-The system should dynamically choose strategies based on:
+Average Profit:
+$40,040
 
-regime
+Median Profit:
+$39,871
 
-Example:
+Worst Case:
+-$14,199
 
-TREND
-    -> TrendStrategy
+Best Case:
+$100,703
 
-RANGE
-    -> RangeStrategy
+5th Percentile:
+$18,686
 
-VOLATILITY
-    -> VolatilityStrategy
-Priority 2
+95th Percentile:
+$61,545
 
-Complete volatility strategy.
+Average Drawdown:
+4.82%
 
-Priority 3
+Worst Drawdown:
+23.12%
 
-Compare:
+Loss Probability:
+0.08%
 
-Fixed Strategy
-vs
+Robustness Score:
+84.92/100
 
-Adaptive Router
+Interpretation:
 
-Using identical walk-forward testing.
+The strategy appears robust but requires more validation before any live deployment.
 
-Priority 4
+Current Project Goal
 
-Move toward Atlas 4.0:
+Move from:
 
-multi-market support
-live market monitoring
-alerts
-AI explanations
-portfolio intelligence
-automated research
-13. Important Development Rule
+Working backtester
 
-When modifying Atlas:
+to:
 
-Do not optimise only against training results.
+Professional quantitative research platform
 
-Every change must survive:
+Remaining major stages:
 
-Optimisation
+Improve validation depth.
+Add multi-market testing.
+Add strategy comparison framework.
+Add research reports.
+Add paper trading layer.
+Add live execution architecture.
+Produce white paper documentation.
+Development Principles
 
-+
+Atlas should always prioritise:
 
-Walk Forward Validation
+Reliability over speed.
+Validation over optimisation.
+Robustness over maximum profit.
+Simplicity over unnecessary complexity.
 
-+
+A lower return strategy that survives testing is preferable to a high return strategy that collapses out-of-sample.
 
-Unseen Data
-14. Current State Summary
+Repository Structure
+Atlas/
 
-Atlas is now beyond a basic trading bot.
+atlas/
+    core engine
 
-Current capability:
+backtesting/
+    engine
+    simulator
 
-Data
- |
-Indicators
- |
-Signals
- |
-Risk
- |
-Simulation
- |
-Optimisation
- |
-Validation
- |
-Regime Analysis
+data/
+    market loading
 
-The next major milestone is:
+indicators/
+    technical indicators
 
-Adaptive Intelligence Layer
+strategy/
+    strategies
+    router
+    filters
 
-where Atlas chooses the correct strategy automatically depending on market conditions.
+risk/
+    position sizing
+
+optimisation/
+    optimiser
+    parallel runner
+
+validation/
+    walk forward system
+    metrics
+    reports
+
+research/
+    monte carlo
+    analysis tools
+
+database/
+    persistence
+
+display/
+    dashboard
+
+models/
+    trade objects
+Next Development Session
+
+Recommended order:
+
+Review validation results.
+Add automated research reports.
+Improve Monte Carlo integration.
+Add multi-symbol validation.
+Begin white paper preparation.
