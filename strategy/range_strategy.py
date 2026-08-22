@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 4.2
+Atlas AI Trading Platform 4.5
 
 Adaptive Range Strategy
 
@@ -11,15 +11,8 @@ Designed for:
 - Bollinger extremes
 - RSI extremes
 
-Atlas 4.2 improvements:
-
-- Separate LONG and SHORT scoring
-- Directional mean reversion
-- Directional RSI
-- ADX range confirmation
-- SMA deviation
-- Bollinger compression
-- Avoids fighting strong trends
+StrategyConfig controls the final minimum score/confidence
+requirements.
 """
 
 from __future__ import annotations
@@ -36,7 +29,10 @@ class RangeStrategy:
         dataframe,
     ):
 
-        if dataframe is None or len(dataframe) < 20:
+        if (
+            dataframe is None
+            or len(dataframe) < 20
+        ):
 
             return {
                 "signal": "HOLD",
@@ -95,10 +91,17 @@ class RangeStrategy:
             ]
         ):
 
-            close = float(latest["Close"])
+            close = float(
+                latest["Close"]
+            )
 
-            upper = latest["BB_UPPER"]
-            lower = latest["BB_LOWER"]
+            upper = latest[
+                "BB_UPPER"
+            ]
+
+            lower = latest[
+                "BB_LOWER"
+            ]
 
             if all(
                 pd.notna(value)
@@ -163,7 +166,9 @@ class RangeStrategy:
             ):
 
                 deviation = (
-                    (close - sma)
+                    (
+                        close - sma
+                    )
                     / abs(sma)
                     * 100
                 )
@@ -192,9 +197,9 @@ class RangeStrategy:
             ].iloc[-1]
 
             average_width = (
-                dataframe["BB_WIDTH"]
-                .iloc[-50:]
-                .mean()
+                dataframe[
+                    "BB_WIDTH"
+                ].iloc[-50:].mean()
             )
 
             if (
@@ -208,8 +213,6 @@ class RangeStrategy:
 
         # =====================================================
         # EMA TREND PROTECTION
-        #
-        # Do not aggressively fade a strong trend.
         # =====================================================
 
         if (
@@ -217,9 +220,17 @@ class RangeStrategy:
             and "EMA_50" in dataframe.columns
         ):
 
-            ema20 = latest["EMA_20"]
-            ema50 = latest["EMA_50"]
-            close = latest["Close"]
+            ema20 = latest[
+                "EMA_20"
+            ]
+
+            ema50 = latest[
+                "EMA_50"
+            ]
+
+            close = latest[
+                "Close"
+            ]
 
             if all(
                 pd.notna(value)
@@ -255,13 +266,17 @@ class RangeStrategy:
         if long_score > short_score:
 
             score = long_score
-            confirmations = long_confirmations
+            confirmations = (
+                long_confirmations
+            )
             signal = "BUY"
 
         elif short_score > long_score:
 
             score = short_score
-            confirmations = short_confirmations
+            confirmations = (
+                short_confirmations
+            )
             signal = "SELL"
 
         else:
@@ -284,24 +299,24 @@ class RangeStrategy:
                 1.0,
             )
 
-            if score < 50:
-
-                signal = "HOLD"
-
         else:
 
             confidence = 0.0
 
-        # =====================================================
-        # RETURN
-        # =====================================================
-
         return {
-            "signal": signal,
-            "score": int(score),
-            "confidence": round(
-                confidence,
-                3,
-            ),
-            "strategy": self.name,
+
+            "signal":
+                signal,
+
+            "score":
+                int(score),
+
+            "confidence":
+                round(
+                    confidence,
+                    3,
+                ),
+
+            "strategy":
+                self.name,
         }

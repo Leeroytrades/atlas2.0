@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 4.4
+Atlas AI Trading Platform 4.5
 
 Strategy Configuration
 
@@ -62,25 +62,28 @@ class StrategyConfig:
     # REGIME CONFIDENCE
     # =========================================================
 
+    # A regime must have at least this confidence before the
+    # automatic StrategyRouter is allowed to select a strategy.
+
     MIN_REGIME_CONFIDENCE = 0.70
 
     # =========================================================
     # SIGNAL QUALITY
-    #
+    # =========================================================
+
     # Reserved for a future explicit score-separation rule.
     #
     # It is deliberately NOT applied automatically because
     # "score distance" has not yet been formally defined.
-    # =========================================================
 
     MIN_SCORE_DISTANCE = 10
 
     # =========================================================
     # TRADE SPACING
-    #
+    # =========================================================
+
     # Minimum number of candles between the previous trade exit
     # and the next eligible signal candle.
-    # =========================================================
 
     MIN_CANDLES_BETWEEN_TRADES = 20
 
@@ -115,7 +118,7 @@ class StrategyConfig:
         )
 
     # =========================================================
-    # EFFECTIVE THRESHOLDS
+    # EFFECTIVE SCORE THRESHOLD
     # =========================================================
 
     @classmethod
@@ -148,11 +151,9 @@ class StrategyConfig:
         )
 
         if requested is None:
-
             return floor
 
         try:
-
             requested = float(
                 requested
             )
@@ -161,13 +162,16 @@ class StrategyConfig:
             TypeError,
             ValueError,
         ):
-
             return floor
 
         return max(
             floor,
             requested,
         )
+
+    # =========================================================
+    # EFFECTIVE CONFIDENCE THRESHOLD
+    # =========================================================
 
     @classmethod
     def effective_confidence_threshold(
@@ -179,6 +183,9 @@ class StrategyConfig:
         Return the actual confidence threshold.
 
         The strategy configuration is always the minimum floor.
+
+        A caller may make the requirement stricter but cannot
+        lower the configured strategy floor.
         """
 
         floor = cls.confidence_threshold(
@@ -186,11 +193,9 @@ class StrategyConfig:
         )
 
         if requested is None:
-
             return floor
 
         try:
-
             requested = float(
                 requested
             )
@@ -199,7 +204,6 @@ class StrategyConfig:
             TypeError,
             ValueError,
         ):
-
             return floor
 
         return max(

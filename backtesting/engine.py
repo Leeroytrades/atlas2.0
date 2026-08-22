@@ -6,6 +6,7 @@ Backtesting Engine
 Responsible for:
 
 - Running strategies over historical data
+- Applying StrategyRunner filters
 - Creating trades
 - ATR-based stop/target configuration
 - Simulating trade lifecycle
@@ -13,40 +14,40 @@ Responsible for:
 - Slippage
 - Breakeven protection
 - Maximum holding period
-- Minimum spacing between trades
+- Strategy attribution
 - Trade statistics
 - Equity curve
 - Drawdown
 
 Execution rules:
 
-1. Signal generated at candle N enters at candle N+1 OPEN.
+1. A signal generated at candle N is entered at candle N+1 OPEN.
 
 2. Only ONE position may be open at a time.
 
 3. A new signal is ignored while the previous simulated
    trade is still open.
 
-4. A minimum number of candles must separate the previous
-   trade exit from the next eligible signal.
+4. ATR used for position sizing and ATR used by the simulator
+   must come from the same entry candle.
 
-5. ATR used for position sizing and ATR used by the simulator
-   come from the same entry candle.
+5. Locked ATR stop/target parameters are applied consistently
+   to both Trade creation and simulation.
 
-6. Locked ATR stop/target parameters are applied consistently
-   to Trade creation and simulation.
+6. Stop/target collisions are handled conservatively by the
+   Simulator. STOP wins when both are touched on the same
+   candle.
 
-7. If stop and target are both touched during the same candle,
-   STOP wins.
+7. Strategy attribution is preserved from signal generation
+   through Trade and SimulatedTrade.
+
+8. StrategyRunner is the canonical signal quality gate.
 """
 
 from __future__ import annotations
 
-from risk.risk_manager import create_trade
-
 from backtesting.simulator import Simulator
-
-from strategy.config import StrategyConfig
+from risk.risk_manager import create_trade
 
 
 class BacktestEngine:
@@ -54,69 +55,54 @@ class BacktestEngine:
     def __init__(
         self,
         starting_cash: float = 100000.0,
-        minimum_score=None,
-        minimum_confidence=None,
+        minimum_score: int = 70,
+        minimum_confidence: float = 0.70,
         atr_stop: float = 2.0,
         atr_target: float = 4.0,
         commission: float = 1.0,
         slippage: float = 0.01,
         max_hold: int = 100,
-        min_candles_between_trades=None,
+        breakeven_atr: float = 1.5,
     ):
 
-        self.starting_cash = float(
-            starting_cash
+        self.starting_cash = float(starting_cash)
+
+        self.minimum_score = int(
+            minimum_score
         )
 
-        # ----------------------------------------------------
-        # These are optional optimiser/backtest overrides.
-        #
-        # StrategyConfig still provides the minimum floor.
-        # ----------------------------------------------------
-
-        self.minimum_score = (
-            None
-            if minimum_score is None
-            else float(minimum_score)
+        self.minimum_confidence = float(
+            minimum_confidence
         )
 
-        self.minimum_confidence = (
-            None
-            if minimum_confidence is None
-            else float(minimum_confidence)
+        self.atr_stop = max(
+            0.0,
+            float(atr_stop),
         )
 
-        self.atr_stop = float(
-            atr_stop
+        self.atr_target = max(
+            0.0,
+            float(atr_target),
         )
 
-        self.atr_target = float(
-            atr_target
+        self.commission = max(
+            0.0,
+            float(commission),
         )
 
-        self.commission = float(
-            commission
+        self.slippage = max(
+            0.0,
+            float(slippage),
         )
 
-        self.slippage = float(
-            slippage
+        self.max_hold = max(
+            1,
+            int(max_hold),
         )
 
-        self.max_hold = int(
-            max_hold
-        )
-
-        if min_candles_between_trades is None:
-
-            min_candles_between_trades = (
-                StrategyConfig.MIN_CANDLES_BETWEEN_TRADES
-            )
-
-        self.min_candles_between_trades = max(
-            0,
-            int(
-                min_candles_between_trades
-            ),
+        self.breakeven_atr = max(
+            0.0,
+            float(breakeven_atr),
         )
 
     # ========================================================
@@ -126,46 +112,30 @@ class BacktestEngine:
     def _empty_results(self):
 
         return {
-
-            "starting_cash":
+            "starting_cash": round(
                 self.starting_cash,
-
-            "ending_equity":
+                2,
+            ),
+            "ending_equity": round(
                 self.starting_cash,
-
-            "profit":
-                0.0,
-
-            "net_profit":
-                0.0,
-
-            "total_trades":
-                0,
-
-            "trades":
-                0,
-
-            "wins":
-                0,
-
-            "losses":
-                0,
-
-            "win_rate":
-                0.0,
-
-            "profit_factor":
-                0.0,
-
-            "average_trade":
-                0.0,
-
-            "max_drawdown":
-                0.0,
-
-            "trade_list":
-                [],
-
+                2,
+            ),
+            "profit": 0.0,
+            "net_profit": 0.0,
+            "total_trades": 0,
+            "trades": 0,
+            "wins": 0,
+            "losses": 0,
+            "winning_trades": 0,
+            "losing_trades": 0,
+            "win_rate": 0.0,
+            "profit_factor": 0.0,
+            "average_trade": 0.0,
+            "max_drawdown": 0.0,
+            "trade_list": [],
+            "equity_curve": [
+                self.starting_cash
+            ],
         }
 
     # ========================================================
@@ -177,11 +147,58 @@ class BacktestEngine:
         symbol: str,
         dataframe,
     ):
+        """
+        Run a backtest against one historical dataframe.
 
-        if (
-            dataframe is None
-            or len(dataframe) < 50
-        ):
+        Parameters
+        ----------
+        symbol:
+            Market symbol being tested.
+
+        dataframe:
+            Historical OHLC dataframe containing at minimum:
+
+                Open
+                High
+                Low
+                Close
+
+            and preferably:
+
+                ATR
+        """
+
+        # ----------------------------------------------------
+        # BASIC VALIDATION
+        # ----------------------------------------------------
+
+        if dataframe is None:
+
+            return self._empty_results()
+
+        if len(dataframe) < 50:
+
+            return self._empty_results()
+
+        required_columns = {
+            "Open",
+            "High",
+            "Low",
+            "Close",
+        }
+
+        missing_columns = (
+            required_columns
+            -
+            set(dataframe.columns)
+        )
+
+        if missing_columns:
+
+            print(
+                "BACKTEST ERROR: Missing columns: "
+                f"{sorted(missing_columns)}"
+            )
 
             return self._empty_results()
 
@@ -191,53 +208,27 @@ class BacktestEngine:
 
         from strategy.runner import StrategyRunner
 
-        # ----------------------------------------------------
-        # Strategy runner
-        #
-        # It performs:
-        #
-        #   regime filtering
-        #   strategy routing
-        #   score filtering
-        #   confidence filtering
-        #
-        # The engine therefore does NOT duplicate those rules.
-        # ----------------------------------------------------
+        # ====================================================
+        # STRATEGY RUNNER
+        # ====================================================
 
         runner = StrategyRunner(
-
-            score_threshold=
-                self.minimum_score,
-
-            confidence_threshold=
-                self.minimum_confidence,
-
+            score_threshold=self.minimum_score,
+            confidence_threshold=self.minimum_confidence,
         )
 
-        # ----------------------------------------------------
-        # Simulator
-        # ----------------------------------------------------
+        # ====================================================
+        # CANONICAL SIMULATOR
+        # ====================================================
 
         simulator = Simulator(
-
-            starting_cash=
-                self.starting_cash,
-
-            commission=
-                self.commission,
-
-            slippage=
-                self.slippage,
-
-            atr_stop=
-                self.atr_stop,
-
-            atr_target=
-                self.atr_target,
-
-            max_hold=
-                self.max_hold,
-
+            starting_cash=self.starting_cash,
+            commission=self.commission,
+            slippage=self.slippage,
+            atr_stop=self.atr_stop,
+            atr_target=self.atr_target,
+            max_hold=self.max_hold,
+            breakeven_atr=self.breakeven_atr,
         )
 
         # ====================================================
@@ -245,47 +236,40 @@ class BacktestEngine:
         # ====================================================
 
         candles_processed = 0
-
-        raw_signals = 0
-
+        runner_signals = 0
         actionable_signals = 0
 
         rejected_direction = 0
-
-        trade_spacing_rejections = 0
+        rejected_score = 0
+        rejected_confidence = 0
 
         trade_creation_failures = 0
-
         successful_trades = 0
-
         runner_failures = 0
+        simulation_failures = 0
 
-        first_trade_error = None
+        first_error = None
 
         # ====================================================
-        # SINGLE-POSITION WALK
-        # ====================================================
-
-        index = 49
-
-        # ----------------------------------------------------
-        # Last trade exit candle.
+        # SINGLE POSITION WALK
         #
-        # None means no trade has occurred yet.
-        # ----------------------------------------------------
+        # Signal at N
+        #
+        # Entry at N+1 OPEN
+        #
+        # After exit:
+        #
+        # Resume at exit + 1
+        # ====================================================
 
-        last_exit_index = None
+        index = 50
 
-        while index < (
-            len(dataframe) - 1
-        ):
+        while index < len(dataframe) - 1:
 
             candles_processed += 1
 
             # =================================================
             # HISTORICAL WINDOW
-            #
-            # Strategy sees candles only through N.
             # =================================================
 
             historical = dataframe.iloc[
@@ -299,25 +283,18 @@ class BacktestEngine:
             try:
 
                 signal = runner.run(
-
-                    dataframe=
-                        historical,
-
-                    symbol=
-                        symbol,
-
+                    dataframe=historical,
+                    symbol=symbol,
                 )
 
             except Exception as exc:
 
                 runner_failures += 1
 
-                if first_trade_error is None:
-
-                    first_trade_error = exc
+                if first_error is None:
+                    first_error = exc
 
                 index += 1
-
                 continue
 
             # =================================================
@@ -327,23 +304,37 @@ class BacktestEngine:
             if signal is None:
 
                 index += 1
-
                 continue
 
-            raw_signals += 1
+            runner_signals += 1
 
             # =================================================
             # NORMALISE SIGNAL
             # =================================================
 
-            if isinstance(
-                signal,
-                dict,
-            ):
+            if isinstance(signal, dict):
 
                 direction = signal.get(
                     "signal",
                     "HOLD",
+                )
+
+                score = signal.get(
+                    "score",
+                    0.0,
+                )
+
+                confidence = signal.get(
+                    "confidence",
+                    0.0,
+                )
+
+                strategy_name = signal.get(
+                    "strategy",
+                    signal.get(
+                        "selected_strategy",
+                        "UNKNOWN",
+                    ),
                 )
 
             else:
@@ -353,6 +344,56 @@ class BacktestEngine:
                     "signal",
                     "HOLD",
                 )
+
+                score = getattr(
+                    signal,
+                    "score",
+                    0.0,
+                )
+
+                confidence = getattr(
+                    signal,
+                    "confidence",
+                    0.0,
+                )
+
+                strategy_name = getattr(
+                    signal,
+                    "strategy",
+                    "UNKNOWN",
+                )
+
+            # =================================================
+            # NUMERIC SAFETY
+            # =================================================
+
+            try:
+
+                score = float(score)
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                score = 0.0
+
+            try:
+
+                confidence = float(
+                    confidence
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                confidence = 0.0
+
+            # =================================================
+            # NORMALISE DIRECTION
+            # =================================================
 
             if isinstance(
                 direction,
@@ -377,60 +418,48 @@ class BacktestEngine:
                 rejected_direction += 1
 
                 index += 1
-
                 continue
 
             # =================================================
-            # MINIMUM TRADE SPACING
-            #
-            # If the previous trade exited on candle 117 and
-            # the configured spacing is 20, the next eligible
-            # signal candle is 138.
-            #
-            # Formula:
-            #
-            #   signal_index >=
-            #       last_exit_index
-            #       + minimum_gap
-            #       + 1
+            # SCORE
             # =================================================
 
-            if last_exit_index is not None:
+            if abs(score) < self.minimum_score:
 
-                earliest_allowed = (
+                rejected_score += 1
 
-                    last_exit_index
-                    + self.min_candles_between_trades
-                    + 1
+                index += 1
+                continue
 
-                )
+            # =================================================
+            # CONFIDENCE
+            # =================================================
 
-                if index < earliest_allowed:
+            if confidence < self.minimum_confidence:
 
-                    trade_spacing_rejections += 1
+                rejected_confidence += 1
 
-                    index += 1
-
-                    continue
+                index += 1
+                continue
 
             actionable_signals += 1
 
             # =================================================
-            # ENTRY
+            # ENTRY CANDLE
             #
-            # Signal at N
-            # Entry at N+1 OPEN
+            # Signal at N.
+            # Entry at N+1 OPEN.
             # =================================================
 
-            entry_index = (
-                index + 1
-            )
+            entry_index = index + 1
 
-            if entry_index >= len(
-                dataframe
-            ):
+            if entry_index >= len(dataframe):
 
                 break
+
+            # =================================================
+            # ENTRY PRICE
+            # =================================================
 
             try:
 
@@ -443,163 +472,91 @@ class BacktestEngine:
                 )
 
             except (
-                KeyError,
                 TypeError,
                 ValueError,
+                IndexError,
             ):
 
                 trade_creation_failures += 1
 
-                if first_trade_error is None:
-
-                    first_trade_error = (
-                        "Entry candle OPEN "
-                        "could not be read"
+                if first_error is None:
+                    first_error = (
+                        "Unable to read entry candle OPEN"
                     )
 
                 index += 1
-
                 continue
 
             if entry_price <= 0:
 
                 trade_creation_failures += 1
 
-                if first_trade_error is None:
-
-                    first_trade_error = (
+                if first_error is None:
+                    first_error = (
                         "Entry price was not positive"
                     )
 
                 index += 1
-
                 continue
 
             # =================================================
-            # TRADE DIRECTION
+            # SIGNAL → TRADE DIRECTION
             # =================================================
 
             trade_direction = (
-
                 "LONG"
                 if direction == "BUY"
                 else "SHORT"
-
             )
-
-            # =================================================
-            # SIGNAL METADATA
-            # =================================================
-
-            if isinstance(
-                signal,
-                dict,
-            ):
-
-                confidence = float(
-                    signal.get(
-                        "confidence",
-                        0.0,
-                    )
-                )
-
-                strategy_name = signal.get(
-                    "strategy",
-                    "UNKNOWN",
-                )
-
-            else:
-
-                confidence = float(
-                    getattr(
-                        signal,
-                        "confidence",
-                        0.0,
-                    )
-                )
-
-                strategy_name = getattr(
-                    signal,
-                    "strategy",
-                    "UNKNOWN",
-                )
 
             # =================================================
             # CREATE TRADE
             #
             # CRITICAL:
             #
-            # entry_index is exactly the same index passed to
-            # Simulator.
-            #
-            # Therefore the risk manager and simulator use
-            # the same entry candle ATR.
+            # ATR is read from entry_index.
+            # The Simulator receives the exact same index.
             # =================================================
 
             try:
 
                 trade = create_trade(
-
-                    symbol=
-                        symbol,
-
-                    direction=
-                        trade_direction,
-
-                    entry=
-                        entry_price,
-
-                    dataframe=
-                        dataframe,
-
-                    index=
-                        entry_index,
-
-                    account_balance=
-                        simulator.cash,
-
-                    risk_percent=
-                        1.0,
-
-                    confidence=
-                        confidence,
-
-                    atr_stop=
-                        self.atr_stop,
-
-                    atr_target=
-                        self.atr_target,
-
+                    symbol=symbol,
+                    direction=trade_direction,
+                    entry=entry_price,
+                    dataframe=dataframe,
+                    index=entry_index,
+                    account_balance=simulator.cash,
+                    risk_percent=1.0,
+                    confidence=confidence,
+                    atr_stop=self.atr_stop,
+                    atr_target=self.atr_target,
                 )
 
             except Exception as exc:
 
                 trade_creation_failures += 1
 
-                if first_trade_error is None:
-
-                    first_trade_error = exc
+                if first_error is None:
+                    first_error = exc
 
                 index += 1
-
                 continue
 
             # =================================================
-            # CREATE FAILURE
+            # TRADE CREATION FAILURE
             # =================================================
 
             if trade is None:
 
                 trade_creation_failures += 1
 
-                if first_trade_error is None:
-
-                    first_trade_error = (
+                if first_error is None:
+                    first_error = (
                         "create_trade returned None"
                     )
 
                 index += 1
-
                 continue
 
             # =================================================
@@ -614,15 +571,13 @@ class BacktestEngine:
 
                 trade_creation_failures += 1
 
-                if first_trade_error is None:
-
-                    first_trade_error = (
+                if first_error is None:
+                    first_error = (
                         "Trade entry does not match "
                         "next candle OPEN"
                     )
 
                 index += 1
-
                 continue
 
             # =================================================
@@ -632,64 +587,86 @@ class BacktestEngine:
             try:
 
                 trade.strategy = (
-
-                    strategy_name
+                    str(strategy_name).strip()
                     if strategy_name
                     else "UNKNOWN"
-
                 )
 
             except Exception:
 
-                pass
+                trade.strategy = "UNKNOWN"
 
             # =================================================
             # SIMULATE
             # =================================================
 
-            simulated = simulator.simulate_trade(
+            try:
 
-                trade,
+                simulated = simulator.simulate_trade(
+                    trade,
+                    dataframe,
+                    entry_index,
+                )
 
-                dataframe,
+            except Exception as exc:
 
-                entry_index,
+                simulation_failures += 1
 
-            )
+                if first_error is None:
+                    first_error = exc
+
+                index += 1
+                continue
+
+            # =================================================
+            # SIMULATION FAILURE
+            # =================================================
 
             if simulated is None:
 
-                index += 1
+                simulation_failures += 1
 
+                index += 1
                 continue
 
             successful_trades += 1
 
-            last_exit_index = (
-                simulated.exit_index
-            )
-
             # =================================================
-            # NEXT ELIGIBLE SIGNAL
-            #
-            # First move past the exit candle.
-            #
-            # The spacing rule above will then prevent entries
-            # until the configured gap has elapsed.
+            # SINGLE POSITION RULE
             # =================================================
 
-            index = (
-                simulated.exit_index + 1
-            )
+            try:
+
+                exit_index = int(
+                    getattr(
+                        simulated,
+                        "exit_index",
+                        entry_index,
+                    )
+                )
+
+            except (
+                TypeError,
+                ValueError,
+            ):
+
+                exit_index = entry_index
+
+            if exit_index < entry_index:
+                exit_index = entry_index
+
+            index = exit_index + 1
 
         # ====================================================
         # DIAGNOSTICS
         # ====================================================
 
         print()
+        print("BACKTEST DIAGNOSTICS")
+        print("--------------------")
 
         print(
-            "BACKTEST DIAGNOSTICS"
+            f"Symbol: {symbol}"
         )
 
         print(
@@ -698,8 +675,8 @@ class BacktestEngine:
         )
 
         print(
-            f"Raw signals: "
-            f"{raw_signals}"
+            f"Runner signals: "
+            f"{runner_signals}"
         )
 
         print(
@@ -713,13 +690,23 @@ class BacktestEngine:
         )
 
         print(
-            f"Rejected by trade spacing: "
-            f"{trade_spacing_rejections}"
+            f"Rejected by score: "
+            f"{rejected_score}"
+        )
+
+        print(
+            f"Rejected by confidence: "
+            f"{rejected_confidence}"
         )
 
         print(
             f"Trade creation failures: "
             f"{trade_creation_failures}"
+        )
+
+        print(
+            f"Simulation failures: "
+            f"{simulation_failures}"
         )
 
         print(
@@ -732,22 +719,68 @@ class BacktestEngine:
             f"{runner_failures}"
         )
 
-        print(
-            f"Minimum candles between trades: "
-            f"{self.min_candles_between_trades}"
-        )
+        # ====================================================
+        # RUNNER DIAGNOSTICS
+        # ====================================================
 
-        if first_trade_error is not None:
+        try:
+
+            runner_stats = runner.statistics()
 
             print()
+            print("STRATEGY RUNNER")
+            print("----------------")
 
             print(
-                "FIRST ERROR:"
+                f"Total windows: "
+                f"{runner_stats.get('total_windows', 0)}"
             )
 
             print(
-                f"{type(first_trade_error).__name__}: "
-                f"{first_trade_error}"
+                f"Regime blocked: "
+                f"{runner_stats.get('regime_blocked', 0)}"
+            )
+
+            print(
+                f"Strategy attempts: "
+                f"{runner_stats.get('strategy_attempts', 0)}"
+            )
+
+            print(
+                f"Signals generated: "
+                f"{runner_stats.get('signals_generated', 0)}"
+            )
+
+            print(
+                f"Score rejected: "
+                f"{runner_stats.get('signals_rejected_score', 0)}"
+            )
+
+            print(
+                f"Confidence rejected: "
+                f"{runner_stats.get('signals_rejected_confidence', 0)}"
+            )
+
+            print(
+                f"Regimes: "
+                f"{runner_stats.get('regimes', {})}"
+            )
+
+        except Exception:
+            pass
+
+        # ====================================================
+        # FIRST ERROR
+        # ====================================================
+
+        if first_error is not None:
+
+            print()
+            print("FIRST ERROR:")
+
+            print(
+                f"{type(first_error).__name__}: "
+                f"{first_error}"
             )
 
         # ====================================================
@@ -757,7 +790,6 @@ class BacktestEngine:
         if successful_trades == 0:
 
             print()
-
             print(
                 "WARNING: BACKTEST PRODUCED "
                 "ZERO TRADES"
@@ -773,7 +805,17 @@ class BacktestEngine:
                     "trade creation failed."
                 )
 
-            elif raw_signals == 0:
+            elif (
+                actionable_signals > 0
+                and simulation_failures > 0
+            ):
+
+                print(
+                    "Signals passed filters but "
+                    "simulation failed."
+                )
+
+            elif runner_signals == 0:
 
                 print(
                     "No strategy signals were "

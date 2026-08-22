@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 4.3
+Atlas AI Trading Platform 4.5
 
 Adaptive Strategy Router
 
@@ -18,6 +18,9 @@ Supported regimes:
 - UNKNOWN
 
 UNKNOWN is deliberately NOT routed to a strategy.
+
+BREAKOUT is routed to VolatilityStrategy because breakout
+conditions require volatility/momentum continuation logic.
 """
 
 from __future__ import annotations
@@ -44,9 +47,9 @@ class StrategyRouter:
 
         }
 
-    # =====================================================
+    # =========================================================
     # SELECT STRATEGY
-    # =====================================================
+    # =========================================================
 
     def select(
         self,
@@ -54,16 +57,15 @@ class StrategyRouter:
     ):
 
         if regime is None:
-
             return None
 
         regime = str(
             regime
         ).upper().strip()
 
-        # -------------------------------------------------
-        # Trend
-        # -------------------------------------------------
+        # =====================================================
+        # TREND
+        # =====================================================
 
         if regime in (
             "TREND",
@@ -77,9 +79,9 @@ class StrategyRouter:
                 "TREND"
             ]
 
-        # -------------------------------------------------
-        # Range
-        # -------------------------------------------------
+        # =====================================================
+        # RANGE
+        # =====================================================
 
         if regime in (
             "RANGE",
@@ -91,9 +93,9 @@ class StrategyRouter:
                 "RANGE"
             ]
 
-        # -------------------------------------------------
-        # Volatility
-        # -------------------------------------------------
+        # =====================================================
+        # VOLATILITY / BREAKOUT
+        # =====================================================
 
         if regime in (
             "VOLATILITY",
@@ -106,10 +108,10 @@ class StrategyRouter:
                 "VOLATILITY"
             ]
 
-        # -------------------------------------------------
+        # =====================================================
         # UNKNOWN / UNSUPPORTED
         #
         # NEVER silently convert UNKNOWN into TREND.
-        # -------------------------------------------------
+        # =====================================================
 
         return None

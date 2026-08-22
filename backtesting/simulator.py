@@ -5,7 +5,7 @@ Backtesting Trade Simulator
 
 Canonical trade lifecycle engine used by BacktestEngine.
 
-Supports:
+Responsibilities:
 
 - Long trades
 - Short trades
@@ -23,13 +23,28 @@ Supports:
 Execution rules:
 
 1. Entry is already determined by BacktestEngine.
+
 2. ATR is taken from the exact entry candle.
+
 3. Stop/target distances use the locked ATR parameters.
-4. If stop and target are touched on the same candle,
+
+4. Trade stop/target values are synchronised with the same
+   ATR calculation used by the simulator.
+
+5. If stop and target are touched on the same candle,
    STOP wins.
-5. A candle that activates breakeven cannot also trigger
+
+6. A candle that activates breakeven cannot also trigger
    the breakeven exit.
-6. Maximum holding period is measured in candles after entry.
+
+7. Maximum holding period is measured in completed candles
+   after entry.
+
+8. Only realised P/L is added to the equity curve.
+
+9. Exit slippage is applied once.
+
+10. Commission is applied once per completed trade.
 """
 
 from __future__ import annotations
@@ -92,28 +107,28 @@ class Simulator:
         breakeven_atr: float = 1.5,
     ):
 
-        self.starting_cash = float(
-            starting_cash
+        self.starting_cash = float(starting_cash)
+
+        self.cash = float(starting_cash)
+
+        self.commission = max(
+            0.0,
+            float(commission),
         )
 
-        self.cash = float(
-            starting_cash
+        self.slippage = max(
+            0.0,
+            float(slippage),
         )
 
-        self.commission = float(
-            commission
+        self.atr_stop = max(
+            0.0,
+            float(atr_stop),
         )
 
-        self.slippage = float(
-            slippage
-        )
-
-        self.atr_stop = float(
-            atr_stop
-        )
-
-        self.atr_target = float(
-            atr_target
+        self.atr_target = max(
+            0.0,
+            float(atr_target),
         )
 
         self.max_hold = max(
@@ -126,14 +141,10 @@ class Simulator:
             float(breakeven_atr),
         )
 
-        self.trades: list[
-            SimulatedTrade
-        ] = []
+        self.trades: list[SimulatedTrade] = []
 
         self.equity_curve = [
-
             self.starting_cash
-
         ]
 
     # ========================================================
@@ -149,9 +160,7 @@ class Simulator:
         self.trades = []
 
         self.equity_curve = [
-
             self.starting_cash
-
         ]
 
     # ========================================================
@@ -167,11 +176,10 @@ class Simulator:
         """
         Get ATR from the exact entry candle.
 
+        No future ATR values are used.
+
         Fallback:
             2% of entry price.
-
-        The fallback exists only for robustness with incomplete
-        historical datasets.
         """
 
         atr = 0.0
@@ -182,15 +190,10 @@ class Simulator:
             and 0 <= index < len(dataframe)
         ):
 
-            value = dataframe[
-                "ATR"
-            ].iloc[index]
+            value = dataframe["ATR"].iloc[index]
 
             try:
-
-                atr = float(
-                    value
-                )
+                atr = float(value)
 
             except (
                 TypeError,
@@ -218,35 +221,58 @@ class Simulator:
         dataframe,
         index: int,
     ):
+        """
+        Simulate one already-created trade.
+
+        The BacktestEngine has already determined the entry.
+
+        The first possible exit is the candle immediately
+        following the entry candle.
+        """
+
+        # ====================================================
+        # VALIDATION
+        # ====================================================
 
         if dataframe is None:
-
             return None
 
-        if index < 0:
-
+        if trade is None:
             return None
 
-        if index >= len(
-            dataframe
+        if index < 0 or index >= len(dataframe):
+            return None
+
+        try:
+            entry = float(trade.entry)
+        except (
+            TypeError,
+            ValueError,
         ):
-
             return None
-
-        entry = float(
-            trade.entry
-        )
 
         if entry <= 0:
-
             return None
 
-        quantity = int(
-            trade.quantity
-        )
+        try:
+            quantity = int(trade.quantity)
+        except (
+            TypeError,
+            ValueError,
+        ):
+            return None
 
         if quantity <= 0:
+            return None
 
+        direction = str(
+            trade.direction
+        ).upper().strip()
+
+        if direction not in (
+            "LONG",
+            "SHORT",
+        ):
             return None
 
         # ====================================================
@@ -260,11 +286,10 @@ class Simulator:
         )
 
         if atr <= 0:
-
             return None
 
         # ====================================================
-        # LOCKED DISTANCES
+        # LOCKED ATR DISTANCES
         # ====================================================
 
         stop_distance = (
@@ -281,14 +306,13 @@ class Simulator:
             stop_distance <= 0
             or target_distance <= 0
         ):
-
             return None
 
         # ====================================================
-        # PRICE LEVELS
+        # CANONICAL PRICE LEVELS
         # ====================================================
 
-        if trade.direction == "LONG":
+        if direction == "LONG":
 
             stop_loss = (
                 entry
@@ -300,7 +324,7 @@ class Simulator:
                 + target_distance
             )
 
-        elif trade.direction == "SHORT":
+        else:
 
             stop_loss = (
                 entry
@@ -312,30 +336,38 @@ class Simulator:
                 - target_distance
             )
 
+        # ====================================================
+        # SYNCHRONISE TRADE
+        # ====================================================
+
+        trade.stop_loss = stop_loss
+
+        trade.take_profit = take_profit
+
+        actual_risk = (
+            stop_distance
+            * quantity
+        )
+
+        actual_reward = (
+            target_distance
+            * quantity
+        )
+
+        trade.risk_amount = actual_risk
+
+        trade.reward_amount = actual_reward
+
+        if actual_risk > 0:
+
+            trade.risk_reward = (
+                actual_reward
+                / actual_risk
+            )
+
         else:
 
-            return None
-
-        # ====================================================
-        # KEEP TRADE LEVELS CONSISTENT
-        #
-        # The simulator is canonical for historical execution.
-        # The calculated levels are written back onto the Trade
-        # so the Trade object and simulated lifecycle agree.
-        # ====================================================
-
-        trade.stop_loss = (
-            stop_loss
-        )
-
-        trade.take_profit = (
-            take_profit
-        )
-
-        trade.risk_reward = (
-            target_distance
-            / stop_distance
-        )
+            trade.risk_reward = 0.0
 
         # ====================================================
         # BREAKEVEN
@@ -375,7 +407,9 @@ class Simulator:
                 future_position
             ]
 
-            candles_held += 1
+            # ------------------------------------------------
+            # OHLC VALIDATION
+            # ------------------------------------------------
 
             try:
 
@@ -397,13 +431,27 @@ class Simulator:
                 KeyError,
             ):
 
+                # Invalid candles are not execution candles.
+                # They are also not counted toward max_hold.
                 continue
+
+            if (
+                high <= 0
+                or low <= 0
+                or close <= 0
+                or high < low
+            ):
+
+                continue
+
+            # This candle is now a completed candle after entry.
+            candles_held += 1
 
             # =================================================
             # LONG
             # =================================================
 
-            if trade.direction == "LONG":
+            if direction == "LONG":
 
                 stop_hit = (
                     low <= stop_loss
@@ -415,8 +463,6 @@ class Simulator:
 
                 # ------------------------------------------------
                 # STOP + TARGET
-                #
-                # STOP WINS.
                 # ------------------------------------------------
 
                 if (
@@ -424,9 +470,7 @@ class Simulator:
                     and target_hit
                 ):
 
-                    exit_price = (
-                        stop_loss
-                    )
+                    exit_price = stop_loss
 
                     exit_reason = (
                         "STOP_SAME_CANDLE"
@@ -444,13 +488,9 @@ class Simulator:
 
                 if target_hit:
 
-                    exit_price = (
-                        take_profit
-                    )
+                    exit_price = take_profit
 
-                    exit_reason = (
-                        "TARGET"
-                    )
+                    exit_reason = "TARGET"
 
                     exit_position = (
                         future_position
@@ -469,9 +509,7 @@ class Simulator:
 
                     exit_price = entry
 
-                    exit_reason = (
-                        "BREAKEVEN"
-                    )
+                    exit_reason = "BREAKEVEN"
 
                     exit_position = (
                         future_position
@@ -485,13 +523,9 @@ class Simulator:
 
                 if stop_hit:
 
-                    exit_price = (
-                        stop_loss
-                    )
+                    exit_price = stop_loss
 
-                    exit_reason = (
-                        "STOP"
-                    )
+                    exit_reason = "STOP"
 
                     exit_position = (
                         future_position
@@ -500,15 +534,14 @@ class Simulator:
                     break
 
                 # ------------------------------------------------
-                # ACTIVATE BREAKEVEN
+                # BREAKEVEN ACTIVATION
                 #
-                # Deliberately performed AFTER all exit checks.
-                # Therefore the same candle cannot activate and
-                # immediately trigger breakeven.
+                # Deliberately occurs after exit checks.
                 # ------------------------------------------------
 
                 if (
                     not breakeven_active
+                    and breakeven_trigger > 0
                     and high >= (
                         entry
                         + breakeven_trigger
@@ -533,8 +566,6 @@ class Simulator:
 
                 # ------------------------------------------------
                 # STOP + TARGET
-                #
-                # STOP WINS.
                 # ------------------------------------------------
 
                 if (
@@ -542,9 +573,7 @@ class Simulator:
                     and target_hit
                 ):
 
-                    exit_price = (
-                        stop_loss
-                    )
+                    exit_price = stop_loss
 
                     exit_reason = (
                         "STOP_SAME_CANDLE"
@@ -562,13 +591,9 @@ class Simulator:
 
                 if target_hit:
 
-                    exit_price = (
-                        take_profit
-                    )
+                    exit_price = take_profit
 
-                    exit_reason = (
-                        "TARGET"
-                    )
+                    exit_reason = "TARGET"
 
                     exit_position = (
                         future_position
@@ -587,9 +612,7 @@ class Simulator:
 
                     exit_price = entry
 
-                    exit_reason = (
-                        "BREAKEVEN"
-                    )
+                    exit_reason = "BREAKEVEN"
 
                     exit_position = (
                         future_position
@@ -603,13 +626,9 @@ class Simulator:
 
                 if stop_hit:
 
-                    exit_price = (
-                        stop_loss
-                    )
+                    exit_price = stop_loss
 
-                    exit_reason = (
-                        "STOP"
-                    )
+                    exit_reason = "STOP"
 
                     exit_position = (
                         future_position
@@ -618,11 +637,12 @@ class Simulator:
                     break
 
                 # ------------------------------------------------
-                # ACTIVATE BREAKEVEN
+                # BREAKEVEN ACTIVATION
                 # ------------------------------------------------
 
                 if (
                     not breakeven_active
+                    and breakeven_trigger > 0
                     and low <= (
                         entry
                         - breakeven_trigger
@@ -639,9 +659,7 @@ class Simulator:
 
                 exit_price = close
 
-                exit_reason = (
-                    "MAX_HOLD"
-                )
+                exit_reason = "MAX_HOLD"
 
                 exit_position = (
                     future_position
@@ -665,38 +683,32 @@ class Simulator:
                 len(dataframe) - 1
             )
 
-            exit_reason = (
-                "END_OF_DATA"
+            exit_reason = "END_OF_DATA"
+
+            candles_held = max(
+                candles_held,
+                max(
+                    0,
+                    exit_position - index,
+                ),
             )
 
         # =====================================================
         # EXIT SLIPPAGE
         #
-        # Long:
-        #   sell execution is worse by slippage.
-        #
-        # Short:
-        #   buy-to-cover execution is worse by slippage.
+        # Applied exactly once.
         # =====================================================
 
-        if trade.direction == "LONG":
+        if direction == "LONG":
 
-            exit_price -= (
-                self.slippage
-            )
+            exit_price -= self.slippage
 
         else:
 
-            exit_price += (
-                self.slippage
-            )
+            exit_price += self.slippage
 
         # =====================================================
         # CLOSE TRADE
-        #
-        # Trade.close() calculates gross P/L.
-        #
-        # Commission is applied exactly once here.
         # =====================================================
 
         trade.close(
@@ -706,6 +718,10 @@ class Simulator:
         gross_profit_loss = float(
             trade.profit_loss
         )
+
+        # =====================================================
+        # COMMISSION
+        # =====================================================
 
         profit_loss = (
             gross_profit_loss
@@ -723,7 +739,13 @@ class Simulator:
         )
 
         if not strategy:
+            strategy = "UNKNOWN"
 
+        strategy = str(
+            strategy
+        ).strip()
+
+        if not strategy:
             strategy = "UNKNOWN"
 
         # =====================================================
@@ -750,7 +772,7 @@ class Simulator:
 
             symbol=trade.symbol,
 
-            direction=trade.direction,
+            direction=direction,
 
             entry=round(
                 entry,
@@ -795,9 +817,7 @@ class Simulator:
             simulated
         )
 
-        self.cash += (
-            profit_loss
-        )
+        self.cash += profit_loss
 
         self.equity_curve.append(
             self.cash
@@ -812,35 +832,27 @@ class Simulator:
     def results(self):
 
         wins = [
-
             trade
             for trade in self.trades
             if trade.profit_loss > 0
-
         ]
 
         losses = [
-
             trade
             for trade in self.trades
             if trade.profit_loss < 0
-
         ]
 
         gross_profit = sum(
-
             trade.profit_loss
             for trade in wins
-
         )
 
         gross_loss = abs(
-
             sum(
                 trade.profit_loss
                 for trade in losses
             )
-
         )
 
         total = len(
@@ -872,8 +884,7 @@ class Simulator:
 
         net_profit = (
             self.cash
-            -
-            self.starting_cash
+            - self.starting_cash
         )
 
         if total > 0:
@@ -889,66 +900,58 @@ class Simulator:
 
         return {
 
-            "starting_cash":
-                round(
-                    self.starting_cash,
-                    2,
-                ),
+            "starting_cash": round(
+                self.starting_cash,
+                2,
+            ),
 
-            "ending_equity":
-                round(
-                    self.cash,
-                    2,
-                ),
+            "ending_equity": round(
+                self.cash,
+                2,
+            ),
 
-            "net_profit":
-                round(
-                    net_profit,
-                    2,
-                ),
+            "net_profit": round(
+                net_profit,
+                2,
+            ),
 
-            "profit":
-                round(
-                    net_profit,
-                    2,
-                ),
+            "profit": round(
+                net_profit,
+                2,
+            ),
 
-            "total_trades":
-                total,
+            "total_trades": total,
 
-            "trades":
-                total,
+            "trades": total,
 
-            "wins":
-                len(wins),
+            "wins": len(wins),
 
-            "losses":
-                len(losses),
+            "losses": len(losses),
 
-            "win_rate":
-                round(
-                    win_rate,
-                    2,
-                ),
+            "winning_trades": len(wins),
 
-            "profit_factor":
-                round(
-                    profit_factor,
-                    2,
-                ),
+            "losing_trades": len(losses),
 
-            "average_trade":
-                round(
-                    average_trade,
-                    2,
-                ),
+            "win_rate": round(
+                win_rate,
+                2,
+            ),
 
-            "max_drawdown":
-                self.calculate_drawdown(),
+            "profit_factor": round(
+                profit_factor,
+                2,
+            ),
 
-            "trade_list":
-                self.trades,
+            "average_trade": round(
+                average_trade,
+                2,
+            ),
 
+            "max_drawdown": self.calculate_drawdown(),
+
+            "trade_list": self.trades,
+
+            "equity_curve": self.equity_curve,
         }
 
     # ========================================================
@@ -958,7 +961,6 @@ class Simulator:
     def calculate_drawdown(self):
 
         if not self.equity_curve:
-
             return 0.0
 
         peak = float(
@@ -969,34 +971,21 @@ class Simulator:
 
         for value in self.equity_curve:
 
-            value = float(
-                value
-            )
+            value = float(value)
 
             if value > peak:
-
                 peak = value
 
             if peak <= 0:
-
                 continue
 
             drawdown = (
-
-                (
-                    peak
-                    -
-                    value
-                )
-                /
-                peak
-                *
-                100.0
-
+                (peak - value)
+                / peak
+                * 100.0
             )
 
             if drawdown > max_drawdown:
-
                 max_drawdown = drawdown
 
         return round(

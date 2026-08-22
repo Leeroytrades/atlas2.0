@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Assistant 3.0
+Atlas AI Trading Assistant 4.4
 
 Trend Indicators
 
@@ -9,6 +9,7 @@ Responsible for:
 - SMA 50
 - EMA 20
 - EMA 50
+- EMA 200
 - ADX
 - DI_PLUS
 - DI_MINUS
@@ -32,11 +33,9 @@ def add_trend_indicators(df: pd.DataFrame) -> pd.DataFrame:
     """
     Adds trend indicators directly to the supplied DataFrame.
 
-    Notes
-    -----
-    Atlas 3.0 modifies the DataFrame in-place to avoid
-    unnecessary DataFrame copies during research,
-    optimisation and backtesting.
+    Atlas 4.4:
+    - Adds EMA200 as the macro trend indicator.
+    - Keeps all existing trend indicators unchanged.
     """
 
     # ---------------------------------------------------------
@@ -63,6 +62,11 @@ def add_trend_indicators(df: pd.DataFrame) -> pd.DataFrame:
         window=50,
     ).ema_indicator()
 
+    df["EMA_200"] = EMAIndicator(
+        close=df["Close"],
+        window=200,
+    ).ema_indicator()
+
     # ---------------------------------------------------------
     # ADX + Directional Movement
     # ---------------------------------------------------------
@@ -75,7 +79,9 @@ def add_trend_indicators(df: pd.DataFrame) -> pd.DataFrame:
     )
 
     df["ADX"] = adx.adx()
+
     df["DI_PLUS"] = adx.adx_pos()
+
     df["DI_MINUS"] = adx.adx_neg()
 
     return df

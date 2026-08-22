@@ -1,1079 +1,1344 @@
 """
-Atlas AI Trading Platform 4.2
+Atlas AI Trading Platform 4.6
 
 Walk Forward Validation Engine
 
-Workflow:
+Responsible for:
 
-        Historical Data
-                |
-        Create Windows
-                |
-        Optimise Training Window
-                |
-        Lock Parameters
-                |
-        Run Unseen Validation Window
-                |
-        Calculate Validation Metrics
-                |
-        Detailed Trade Diagnostics
-                |
-        Apply Robustness / Acceptance Rules
-                |
-        PASS / PASS_LOW_SAMPLE / FAIL
+- Loading historical market data
+- Creating chronological training/validation windows
+- Optimising strategy parameters on training data only
+- Locking the best training parameters
+- Testing those parameters on completely unseen validation data
+- Preventing training-data leakage
+- Recording validation results
+- Regime analysis
+- Combined validation statistics
+- Robustness scoring
+- Validation reporting
 
-This version adds detailed validation diagnostics so that failed
-walk-forward windows can be investigated rather than simply
-classified as PASS or FAIL.
+IMPORTANT:
 
-Atlas 4.2 diagnostic improvements:
+Training data is used ONLY for optimisation.
 
-- Prints every validation trade individually
-- Shows entry and exit prices
-- Shows direction
-- Shows strategy
-- Shows P/L
-- Shows exit reason
-- Shows candles held
-- Shows risk/reward
-- Clearly identifies the current validation window
-- Does NOT alter trading logic
-- Does NOT alter optimisation
-- Does NOT alter validation thresholds
+Validation data is never passed to the optimiser.
+
+The selected parameters are locked before
+validation testing begins.
 """
 
 from __future__ import annotations
 
-from collections import defaultdict
+from dataclasses import dataclass
+
+
+# ============================================================
+# IMPORTS
+# ============================================================
 
 from data.market_data import MarketData
 
-from indicators.composite import build_indicator_set
+from optimisation.optimizer import (
+    StrategyOptimizer,
+)
 
-from optimisation.optimizer import StrategyOptimizer
+from backtesting.engine import (
+    BacktestEngine,
+)
 
-from backtesting.engine import BacktestEngine
+from validation.database import (
+    ValidationDatabase,
+)
 
-from validation.window import WindowGenerator
+from research.regime_detector import (
+    RegimeDetector,
+)
 
-from validation.metrics import ValidationMetrics
 
-from database.validation import ValidationDatabase
+# ============================================================
+# VALIDATION WINDOW
+# ============================================================
 
-from research.regime_detector import RegimeDetector
+
+@dataclass(slots=True)
+class ValidationWindow:
+
+    training: object
+
+    validation: object
+
+    def __str__(self):
+
+        return (
+            f"Training candles: {len(self.training)} | "
+            f"Validation candles: {len(self.validation)}"
+        )
+
+
+# ============================================================
+# WINDOW GENERATOR
+# ============================================================
+
+
+class WindowGenerator:
+
+    def __init__(
+        self,
+        training_size: int = 500,
+        validation_size: int = 250,
+        step_size: int = 100,
+        expanding: bool = True,
+    ):
+
+        self.training_size = int(
+            training_size
+        )
+
+        self.validation_size = int(
+            validation_size
+        )
+
+        self.step_size = int(
+            step_size
+        )
+
+        self.expanding = bool(
+            expanding
+        )
+
+    # ========================================================
+    # GENERATE WINDOWS
+    # ========================================================
+
+    def generate(
+        self,
+        dataframe,
+    ):
+
+        windows = []
+
+        if dataframe is None:
+
+            print(
+                "WINDOW ERROR: Dataset is None"
+            )
+
+            return windows
+
+        total_rows = len(
+            dataframe
+        )
+
+        print()
+
+        print(
+            f"Dataset candles available: "
+            f"{total_rows}"
+        )
+
+        print(
+            f"Training size: "
+            f"{self.training_size}"
+        )
+
+        print(
+            f"Validation size: "
+            f"{self.validation_size}"
+        )
+
+        print(
+            f"Step size: "
+            f"{self.step_size}"
+        )
+
+        print(
+            f"Expanding training: "
+            f"{self.expanding}"
+        )
+
+        required_rows = (
+            self.training_size
+            +
+            self.validation_size
+        )
+
+        print(
+            f"Required per window: "
+            f"{required_rows}"
+        )
+
+        if total_rows < required_rows:
+
+            print()
+
+            print(
+                "WINDOW ERROR: Not enough data"
+            )
+
+            return windows
+
+        if self.step_size <= 0:
+
+            print()
+
+            print(
+                "WINDOW ERROR: "
+                "step_size must be greater than zero"
+            )
+
+            return windows
+
+        start = 0
+
+        while True:
+
+            # ------------------------------------------------
+            # TRAINING WINDOW
+            # ------------------------------------------------
+
+            if self.expanding:
+
+                training_start = 0
+
+            else:
+
+                training_start = start
+
+            training_end = (
+                start
+                +
+                self.training_size
+            )
+
+            # ------------------------------------------------
+            # VALIDATION WINDOW
+            # ------------------------------------------------
+
+            validation_start = (
+                training_end
+            )
+
+            validation_end = (
+                training_end
+                +
+                self.validation_size
+            )
+
+            # ------------------------------------------------
+            # Stop when validation exceeds dataset
+            # ------------------------------------------------
+
+            if validation_end > total_rows:
+
+                break
+
+            # ------------------------------------------------
+            # Slice data
+            # ------------------------------------------------
+
+            training = dataframe.iloc[
+                training_start:
+                training_end
+            ].copy()
+
+            validation = dataframe.iloc[
+                validation_start:
+                validation_end
+            ].copy()
+
+            # ------------------------------------------------
+            # Safety checks
+            # ------------------------------------------------
+
+            if len(training) < self.training_size:
+
+                break
+
+            if len(validation) < self.validation_size:
+
+                break
+
+            # ------------------------------------------------
+            # Create window
+            # ------------------------------------------------
+
+            windows.append(
+
+                ValidationWindow(
+
+                    training=training,
+
+                    validation=validation,
+
+                )
+
+            )
+
+            # ------------------------------------------------
+            # Move forward chronologically
+            # ------------------------------------------------
+
+            start += self.step_size
+
+        print()
+
+        print(
+            f"Generated validation windows: "
+            f"{len(windows)}"
+        )
+
+        return windows
+
+
+# ============================================================
+# VALIDATION RESULT
+# ============================================================
+
+
+@dataclass(slots=True)
+class ValidationWindowResult:
+
+    window_id: int
+
+    parameters: dict
+
+    training: dict
+
+    validation: dict
+
+    verdict: str
+
+    robustness_score: float
+
+    regime: str = "UNKNOWN"
+
+    regime_confidence: float = 0.0
+
+
+# ============================================================
+# WALK FORWARD VALIDATOR
+# ============================================================
 
 
 class WalkForwardValidator:
-    """
-    Walk-forward validation engine.
 
-    Training data is used exclusively for optimisation.
+    # ========================================================
+    # VALIDATION RULES
+    # ========================================================
 
-    The resulting parameters are locked.
+    MIN_VALIDATION_TRADES = 1
 
-    The locked parameters are then tested against completely
-    unseen validation data.
+    MIN_PROFIT_FACTOR = 1.0
 
-    Validation classification:
+    MIN_WIN_RATE = 30.0
 
-        PASS
-            Strong performance with sufficient sample.
+    MAX_DRAWDOWN = 30.0
 
-        PASS_LOW_SAMPLE
-            Strong performance but insufficient trades for
-            strong statistical confidence.
-
-        FAIL
-            Performance or robustness requirements failed.
-
-    Additional diagnostics identify:
-
-        - strategy performance
-        - direction performance
-        - exit reason performance
-        - winning / losing trades
-        - trade duration
-        - largest winner
-        - largest loser
-        - every individual trade
-    """
+    # ========================================================
+    # INIT
+    # ========================================================
 
     def __init__(
         self,
         symbol="SPY",
         starting_cash=100000.0,
-        training_size=1000,
+
+        training_size=500,
+
         validation_size=250,
-        step_size=250,
+
+        step_size=100,
+
         expanding=True,
+
         max_windows=None,
     ):
 
         self.symbol = symbol
 
-        self.starting_cash = starting_cash
+        self.starting_cash = float(
+            starting_cash
+        )
 
         self.max_windows = max_windows
 
+        # ----------------------------------------------------
+        # Market data
+        # ----------------------------------------------------
+
         self.market = MarketData()
 
+        # ----------------------------------------------------
+        # Optimiser
+        # ----------------------------------------------------
+
         self.optimizer = StrategyOptimizer(
-            starting_cash=starting_cash
+
+            starting_cash=
+                self.starting_cash
+
         )
 
+        # ----------------------------------------------------
+        # Window generator
+        # ----------------------------------------------------
+
         self.window_generator = WindowGenerator(
-            training_size=training_size,
-            validation_size=validation_size,
-            step_size=step_size,
-            expanding=expanding,
+
+            training_size=
+                training_size,
+
+            validation_size=
+                validation_size,
+
+            step_size=
+                step_size,
+
+            expanding=
+                expanding,
+
         )
+
+        # ----------------------------------------------------
+        # Validation database
+        # ----------------------------------------------------
 
         self.database = ValidationDatabase()
 
+        # ----------------------------------------------------
+        # Regime detector
+        # ----------------------------------------------------
+
         self.regime_detector = RegimeDetector()
 
-    # =====================================================
+        # ----------------------------------------------------
+        # Results
+        # ----------------------------------------------------
+
+        self.results = []
+
+    # ========================================================
     # LOAD DATA
-    # =====================================================
+    # ========================================================
 
-    def load_data(self):
+    def load_data(
+        self,
+    ):
 
-        dataframe = self.market.get_history(
-            symbol=self.symbol,
-            period="10y",
-            interval="1d",
-        )
+        dataframe = None
 
-        dataframe = build_indicator_set(
-            dataframe.copy()
-        )
+        errors = []
 
-        print()
+        # ----------------------------------------------------
+        # get_data
+        # ----------------------------------------------------
 
-        print(
-            f"Dataset candles available: {len(dataframe)}"
-        )
+        if hasattr(
+            self.market,
+            "get_data",
+        ):
+
+            try:
+
+                dataframe = (
+                    self.market.get_data(
+                        self.symbol
+                    )
+                )
+
+            except Exception as error:
+
+                errors.append(
+                    f"get_data: {error}"
+                )
+
+        # ----------------------------------------------------
+        # download
+        # ----------------------------------------------------
+
+        if (
+            dataframe is None
+            and
+            hasattr(
+                self.market,
+                "download",
+            )
+        ):
+
+            try:
+
+                dataframe = (
+                    self.market.download(
+                        self.symbol
+                    )
+                )
+
+            except Exception as error:
+
+                errors.append(
+                    f"download: {error}"
+                )
+
+        # ----------------------------------------------------
+        # fetch
+        # ----------------------------------------------------
+
+        if (
+            dataframe is None
+            and
+            hasattr(
+                self.market,
+                "fetch",
+            )
+        ):
+
+            try:
+
+                dataframe = (
+                    self.market.fetch(
+                        self.symbol
+                    )
+                )
+
+            except Exception as error:
+
+                errors.append(
+                    f"fetch: {error}"
+                )
+
+        # ----------------------------------------------------
+        # Failure
+        # ----------------------------------------------------
+
+        if dataframe is None:
+
+            print()
+
+            print(
+                "VALIDATION ERROR: "
+                "Unable to load market data."
+            )
+
+            for error in errors:
+
+                print(
+                    f"  {error}"
+                )
+
+            return None
+
+        # ----------------------------------------------------
+        # Validate dataframe
+        # ----------------------------------------------------
+
+        if not hasattr(
+            dataframe,
+            "empty",
+        ):
+
+            print()
+
+            print(
+                "VALIDATION ERROR: "
+                "Market data is not a dataframe."
+            )
+
+            return None
+
+        if dataframe.empty:
+
+            print()
+
+            print(
+                "VALIDATION ERROR: "
+                "Market dataset is empty."
+            )
+
+            return None
 
         return dataframe
 
-    # =====================================================
-    # TRADE DIAGNOSTICS
-    # =====================================================
+    # ========================================================
+    # TRADE COUNT
+    # ========================================================
 
-    def print_trade_diagnostics(
+    @staticmethod
+    def get_trade_count(
+        result: dict,
+    ) -> int:
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+
+            return 0
+
+        try:
+
+            return int(
+                result.get(
+                    "total_trades",
+                    result.get(
+                        "trades",
+                        result.get(
+                            "trade_count",
+                            0,
+                        ),
+                    ),
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return 0
+
+    # ========================================================
+    # PROFIT
+    # ========================================================
+
+    @staticmethod
+    def get_profit(
+        result: dict,
+    ) -> float:
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+
+            return 0.0
+
+        try:
+
+            return float(
+                result.get(
+                    "profit",
+                    result.get(
+                        "net_profit",
+                        0.0,
+                    ),
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return 0.0
+
+    # ========================================================
+    # PROFIT FACTOR
+    # ========================================================
+
+    @staticmethod
+    def get_profit_factor(
+        result: dict,
+    ) -> float:
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+
+            return 0.0
+
+        try:
+
+            return float(
+                result.get(
+                    "profit_factor",
+                    0.0,
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return 0.0
+
+    # ========================================================
+    # WIN RATE
+    # ========================================================
+
+    @staticmethod
+    def get_win_rate(
+        result: dict,
+    ) -> float:
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+
+            return 0.0
+
+        try:
+
+            return float(
+                result.get(
+                    "win_rate",
+                    0.0,
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return 0.0
+
+    # ========================================================
+    # DRAWDOWN
+    # ========================================================
+
+    @staticmethod
+    def get_drawdown(
+        result: dict,
+    ) -> float:
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+
+            return 0.0
+
+        try:
+
+            return float(
+                result.get(
+                    "max_drawdown",
+                    0.0,
+                )
+            )
+
+        except (
+            TypeError,
+            ValueError,
+        ):
+
+            return 0.0
+
+    # ========================================================
+    # SELECT BEST CONFIGURATION
+    # ========================================================
+
+    def select_best_configuration(
         self,
-        validation_result,
-        window_number=None,
+        optimisation_results,
     ):
-        """
-        Analyse the simulated trades returned by the
-        BacktestEngine.
 
-        This operates entirely on the already completed
-        validation result.
+        if not optimisation_results:
 
-        It does not alter trading logic.
+            return None
 
-        In addition to aggregate statistics, every individual
-        trade is printed so failed validation windows can be
-        investigated.
-        """
-
-        trades = validation_result.get(
-            "trade_list",
-            []
+        return self.optimizer.best(
+            optimisation_results
         )
 
-        print()
+    # ========================================================
+    # CREATE BACKTEST ENGINE
+    # ========================================================
 
-        print(
-            "=" * 60
+    def create_backtest_engine(
+        self,
+        parameters: dict,
+    ):
+
+        score_threshold = float(
+            parameters.get(
+                "score_threshold",
+                40,
+            )
         )
 
-        if window_number is not None:
+        confidence = float(
+            parameters.get(
+                "confidence",
+                0.40,
+            )
+        )
 
-            print(
-                f"TRADE DIAGNOSTICS - WINDOW {window_number}"
+        atr_stop = float(
+            parameters.get(
+                "atr_stop",
+                2.0,
+            )
+        )
+
+        atr_target = float(
+            parameters.get(
+                "atr_target",
+                4.0,
+            )
+        )
+
+        return BacktestEngine(
+
+            starting_cash=
+                self.starting_cash,
+
+            minimum_score=
+                score_threshold,
+
+            minimum_confidence=
+                confidence,
+
+            atr_stop=
+                atr_stop,
+
+            atr_target=
+                atr_target,
+
+        )
+
+    # ========================================================
+    # RUN VALIDATION BACKTEST
+    # ========================================================
+
+    def run_validation_backtest(
+        self,
+        validation_dataframe,
+        parameters,
+    ):
+
+        engine = self.create_backtest_engine(
+            parameters
+        )
+
+        result = engine.run(
+
+            symbol=
+                self.symbol,
+
+            dataframe=
+                validation_dataframe,
+
+        )
+
+        if not isinstance(
+            result,
+            dict,
+        ):
+
+            return {
+
+                "profit": 0.0,
+
+                "net_profit": 0.0,
+
+                "profit_factor": 0.0,
+
+                "win_rate": 0.0,
+
+                "total_trades": 0,
+
+                "trades": 0,
+
+                "max_drawdown": 0.0,
+
+                "average_trade": 0.0,
+
+                "trade_list": [],
+
+            }
+
+        return result
+
+    # ========================================================
+    # VERDICT
+    # ========================================================
+
+    def determine_verdict(
+        self,
+        validation,
+    ):
+
+        trades = self.get_trade_count(
+            validation
+        )
+
+        profit = self.get_profit(
+            validation
+        )
+
+        profit_factor = (
+            self.get_profit_factor(
+                validation
+            )
+        )
+
+        win_rate = self.get_win_rate(
+            validation
+        )
+
+        drawdown = self.get_drawdown(
+            validation
+        )
+
+        if trades < self.MIN_VALIDATION_TRADES:
+
+            return "FAIL"
+
+        if profit <= 0:
+
+            return "FAIL"
+
+        if profit_factor < self.MIN_PROFIT_FACTOR:
+
+            return "FAIL"
+
+        if win_rate < self.MIN_WIN_RATE:
+
+            return "FAIL"
+
+        if drawdown > self.MAX_DRAWDOWN:
+
+            return "FAIL"
+
+        return "PASS"
+
+    # ========================================================
+    # ROBUSTNESS SCORE
+    # ========================================================
+
+    def calculate_robustness_score(
+        self,
+        training,
+        validation,
+    ):
+
+        training_profit = self.get_profit(
+            training
+        )
+
+        validation_profit = self.get_profit(
+            validation
+        )
+
+        training_pf = (
+            self.get_profit_factor(
+                training
+            )
+        )
+
+        validation_pf = (
+            self.get_profit_factor(
+                validation
+            )
+        )
+
+        training_win_rate = (
+            self.get_win_rate(
+                training
+            )
+        )
+
+        validation_win_rate = (
+            self.get_win_rate(
+                validation
+            )
+        )
+
+        validation_drawdown = (
+            self.get_drawdown(
+                validation
+            )
+        )
+
+        score = 0.0
+
+        # ----------------------------------------------------
+        # Validation profit
+        # ----------------------------------------------------
+
+        if validation_profit > 0:
+
+            score += 30
+
+        elif validation_profit == 0:
+
+            score += 10
+
+        # ----------------------------------------------------
+        # Profit factor
+        # ----------------------------------------------------
+
+        if validation_pf >= 2.0:
+
+            score += 25
+
+        elif validation_pf >= 1.5:
+
+            score += 20
+
+        elif validation_pf >= 1.2:
+
+            score += 15
+
+        elif validation_pf >= 1.0:
+
+            score += 10
+
+        # ----------------------------------------------------
+        # Win rate
+        # ----------------------------------------------------
+
+        if validation_win_rate >= 60:
+
+            score += 15
+
+        elif validation_win_rate >= 50:
+
+            score += 12
+
+        elif validation_win_rate >= 40:
+
+            score += 8
+
+        elif validation_win_rate >= 30:
+
+            score += 4
+
+        # ----------------------------------------------------
+        # Drawdown
+        # ----------------------------------------------------
+
+        if validation_drawdown <= 5:
+
+            score += 15
+
+        elif validation_drawdown <= 10:
+
+            score += 12
+
+        elif validation_drawdown <= 20:
+
+            score += 8
+
+        elif validation_drawdown <= 30:
+
+            score += 4
+
+        # ----------------------------------------------------
+        # Profit consistency
+        # ----------------------------------------------------
+
+        if training_profit > 0:
+
+            if validation_profit > 0:
+
+                score += 10
+
+            else:
+
+                score -= 10
+
+        # ----------------------------------------------------
+        # Profit factor consistency
+        # ----------------------------------------------------
+
+        if (
+            training_pf > 0
+            and validation_pf > 0
+        ):
+
+            ratio = (
+                validation_pf
+                /
+                training_pf
+            )
+
+            if ratio >= 0.75:
+
+                score += 5
+
+            elif ratio >= 0.50:
+
+                score += 2
+
+            else:
+
+                score -= 5
+
+        # ----------------------------------------------------
+        # Win-rate consistency
+        # ----------------------------------------------------
+
+        win_rate_difference = abs(
+            training_win_rate
+            -
+            validation_win_rate
+        )
+
+        if win_rate_difference <= 10:
+
+            score += 5
+
+        elif win_rate_difference <= 20:
+
+            score += 2
+
+        else:
+
+            score -= 5
+
+        return round(
+            max(
+                0.0,
+                min(
+                    100.0,
+                    score,
+                ),
+            ),
+            2,
+        )
+
+    # ========================================================
+    # REGIME ANALYSIS
+    # ========================================================
+
+    def analyse_regime(
+        self,
+        dataframe,
+    ):
+
+        try:
+
+            result = (
+                self.regime_detector.analyse(
+                    dataframe
+                )
+            )
+
+        except Exception:
+
+            return (
+                "UNKNOWN",
+                0.0,
+            )
+
+        if isinstance(
+            result,
+            dict,
+        ):
+
+            regime = result.get(
+                "regime",
+                "UNKNOWN",
+            )
+
+            confidence = result.get(
+                "confidence",
+                0.0,
             )
 
         else:
 
-            print(
-                "TRADE DIAGNOSTICS"
-            )
+            regime = result
 
-        print(
-            "=" * 60
-        )
+            confidence = 0.0
 
-        if not trades:
+        if not regime:
 
-            print()
-
-            print(
-                "No trades available for diagnostics."
-            )
-
-            return
-
-        total = len(trades)
-
-        # =================================================
-        # BASIC STATISTICS
-        # =================================================
-
-        profits = [
-            float(
-                getattr(
-                    trade,
-                    "profit_loss",
-                    0.0
-                )
-            )
-            for trade in trades
-        ]
-
-        winners = [
-            value
-            for value in profits
-            if value > 0
-        ]
-
-        losers = [
-            value
-            for value in profits
-            if value < 0
-        ]
-
-        total_profit = sum(
-            profits
-        )
-
-        average_trade = (
-            total_profit / total
-            if total
-            else 0.0
-        )
-
-        largest_winner = (
-            max(winners)
-            if winners
-            else 0.0
-        )
-
-        largest_loser = (
-            min(losers)
-            if losers
-            else 0.0
-        )
-
-        print()
-
-        print(
-            f"Total trades: {total}"
-        )
-
-        print(
-            f"Winning trades: "
-            f"{len(winners)}"
-        )
-
-        print(
-            f"Losing trades: "
-            f"{len(losers)}"
-        )
-
-        print(
-            f"Average trade: "
-            f"{average_trade:.2f}"
-        )
-
-        print(
-            f"Largest winner: "
-            f"{largest_winner:.2f}"
-        )
-
-        print(
-            f"Largest loser: "
-            f"{largest_loser:.2f}"
-        )
-
-        # =================================================
-        # DIRECTION BREAKDOWN
-        # =================================================
-
-        direction_stats = defaultdict(
-            lambda: {
-                "trades": 0,
-                "wins": 0,
-                "losses": 0,
-                "profit": 0.0,
-            }
-        )
-
-        for trade in trades:
-
-            direction = str(
-                getattr(
-                    trade,
-                    "direction",
-                    "UNKNOWN"
-                )
-            ).upper()
-
-            profit = float(
-                getattr(
-                    trade,
-                    "profit_loss",
-                    0.0
-                )
-            )
-
-            stats = direction_stats[
-                direction
-            ]
-
-            stats["trades"] += 1
-
-            stats["profit"] += profit
-
-            if profit > 0:
-
-                stats["wins"] += 1
-
-            elif profit < 0:
-
-                stats["losses"] += 1
-
-        print()
-
-        print(
-            "DIRECTION BREAKDOWN"
-        )
-
-        for direction, stats in sorted(
-            direction_stats.items()
-        ):
-
-            win_rate = (
-                stats["wins"]
-                /
-                stats["trades"]
-                *
-                100
-                if stats["trades"] > 0
-                else 0.0
-            )
-
-            print(
-                f"  {direction}: "
-                f"{stats['trades']} trades | "
-                f"Wins {stats['wins']} | "
-                f"Losses {stats['losses']} | "
-                f"Win Rate {win_rate:.2f}% | "
-                f"Profit {stats['profit']:.2f}"
-            )
-
-        # =================================================
-        # STRATEGY BREAKDOWN
-        # =================================================
-
-        strategy_stats = defaultdict(
-            lambda: {
-                "trades": 0,
-                "wins": 0,
-                "losses": 0,
-                "profit": 0.0,
-            }
-        )
-
-        for trade in trades:
-
-            strategy = str(
-                getattr(
-                    trade,
-                    "strategy",
-                    "UNKNOWN"
-                )
-            )
-
-            profit = float(
-                getattr(
-                    trade,
-                    "profit_loss",
-                    0.0
-                )
-            )
-
-            stats = strategy_stats[
-                strategy
-            ]
-
-            stats["trades"] += 1
-
-            stats["profit"] += profit
-
-            if profit > 0:
-
-                stats["wins"] += 1
-
-            elif profit < 0:
-
-                stats["losses"] += 1
-
-        print()
-
-        print(
-            "STRATEGY BREAKDOWN"
-        )
-
-        for strategy, stats in sorted(
-            strategy_stats.items()
-        ):
-
-            win_rate = (
-                stats["wins"]
-                /
-                stats["trades"]
-                *
-                100
-                if stats["trades"] > 0
-                else 0.0
-            )
-
-            print(
-                f"  {strategy}: "
-                f"{stats['trades']} trades | "
-                f"Wins {stats['wins']} | "
-                f"Losses {stats['losses']} | "
-                f"Win Rate {win_rate:.2f}% | "
-                f"Profit {stats['profit']:.2f}"
-            )
-
-        # =================================================
-        # EXIT REASON BREAKDOWN
-        # =================================================
-
-        exit_stats = defaultdict(
-            lambda: {
-                "trades": 0,
-                "wins": 0,
-                "losses": 0,
-                "profit": 0.0,
-            }
-        )
-
-        for trade in trades:
-
-            reason = str(
-                getattr(
-                    trade,
-                    "exit_reason",
-                    "UNKNOWN"
-                )
-            )
-
-            profit = float(
-                getattr(
-                    trade,
-                    "profit_loss",
-                    0.0
-                )
-            )
-
-            stats = exit_stats[
-                reason
-            ]
-
-            stats["trades"] += 1
-
-            stats["profit"] += profit
-
-            if profit > 0:
-
-                stats["wins"] += 1
-
-            elif profit < 0:
-
-                stats["losses"] += 1
-
-        print()
-
-        print(
-            "EXIT REASON BREAKDOWN"
-        )
-
-        for reason, stats in sorted(
-            exit_stats.items()
-        ):
-
-            win_rate = (
-                stats["wins"]
-                /
-                stats["trades"]
-                *
-                100
-                if stats["trades"] > 0
-                else 0.0
-            )
-
-            print(
-                f"  {reason}: "
-                f"{stats['trades']} trades | "
-                f"Wins {stats['wins']} | "
-                f"Losses {stats['losses']} | "
-                f"Win Rate {win_rate:.2f}% | "
-                f"Profit {stats['profit']:.2f}"
-            )
-
-        # =================================================
-        # HOLDING PERIOD
-        # =================================================
-
-        holding_periods = []
-
-        for trade in trades:
-
-            candles = int(
-                getattr(
-                    trade,
-                    "candles_held",
-                    0
-                )
-            )
-
-            holding_periods.append(
-                candles
-            )
-
-        if holding_periods:
-
-            average_hold = (
-                sum(
-                    holding_periods
-                )
-                /
-                len(
-                    holding_periods
-                )
-            )
-
-            longest_hold = max(
-                holding_periods
-            )
-
-            shortest_hold = min(
-                holding_periods
-            )
-
-            print()
-
-            print(
-                "HOLDING PERIOD"
-            )
-
-            print(
-                f"  Average: "
-                f"{average_hold:.2f} candles"
-            )
-
-            print(
-                f"  Shortest: "
-                f"{shortest_hold} candles"
-            )
-
-            print(
-                f"  Longest: "
-                f"{longest_hold} candles"
-            )
-
-        # =================================================
-        # RISK / REWARD
-        # =================================================
-
-        risk_rewards = []
-
-        for trade in trades:
-
-            rr = float(
-                getattr(
-                    trade,
-                    "risk_reward",
-                    0.0
-                )
-            )
-
-            if rr > 0:
-
-                risk_rewards.append(
-                    rr
-                )
-
-        if risk_rewards:
-
-            average_rr = (
-                sum(
-                    risk_rewards
-                )
-                /
-                len(
-                    risk_rewards
-                )
-            )
-
-            print()
-
-            print(
-                "RISK / REWARD"
-            )
-
-            print(
-                f"  Average R:R: "
-                f"{average_rr:.2f}"
-            )
-
-        # =================================================
-        # INDIVIDUAL TRADE REPORT
-        # =================================================
-        #
-        # This is the important new diagnostic section.
-        #
-        # We deliberately print every trade in chronological
-        # order rather than only the worst/best five.
-        #
-        # This allows us to see whether Window 2 is suffering
-        # from:
-        #
-        # - repeated stops
-        # - repeated breakeven exits
-        # - poor direction selection
-        # - unrealistic targets
-        # - long losing holds
-        # - one particular strategy failing
-        #
-        # =================================================
-
-        print()
-
-        print(
-            "=" * 60
-        )
-
-        print(
-            "INDIVIDUAL TRADE REPORT"
-        )
-
-        print(
-            "=" * 60
-        )
-
-        for trade_number, trade in enumerate(
-            trades,
-            start=1
-        ):
-
-            direction = str(
-                getattr(
-                    trade,
-                    "direction",
-                    "UNKNOWN"
-                )
-            )
-
-            strategy = str(
-                getattr(
-                    trade,
-                    "strategy",
-                    "UNKNOWN"
-                )
-            )
-
-            exit_reason = str(
-                getattr(
-                    trade,
-                    "exit_reason",
-                    "UNKNOWN"
-                )
-            )
-
-            entry = float(
-                getattr(
-                    trade,
-                    "entry",
-                    0.0
-                )
-            )
-
-            exit_price = float(
-                getattr(
-                    trade,
-                    "exit",
-                    0.0
-                )
-            )
-
-            profit_loss = float(
-                getattr(
-                    trade,
-                    "profit_loss",
-                    0.0
-                )
-            )
-
-            candles_held = int(
-                getattr(
-                    trade,
-                    "candles_held",
-                    0
-                )
-            )
-
-            risk_reward = float(
-                getattr(
-                    trade,
-                    "risk_reward",
-                    0.0
-                )
-            )
-
-            quantity = int(
-                getattr(
-                    trade,
-                    "quantity",
-                    0
-                )
-            )
-
-            if profit_loss > 0:
-
-                result = "WIN"
-
-            elif profit_loss < 0:
-
-                result = "LOSS"
-
-            else:
-
-                result = "BREAKEVEN"
-
-            print()
-
-            print(
-                f"Trade {trade_number}/{total}"
-            )
-
-            print(
-                f"  Result:       {result}"
-            )
-
-            print(
-                f"  Direction:    {direction}"
-            )
-
-            print(
-                f"  Strategy:     {strategy}"
-            )
-
-            print(
-                f"  Entry:        {entry:.2f}"
-            )
-
-            print(
-                f"  Exit:         {exit_price:.2f}"
-            )
-
-            print(
-                f"  P/L:          {profit_loss:.2f}"
-            )
-
-            print(
-                f"  Exit reason:  {exit_reason}"
-            )
-
-            print(
-                f"  Candles held: {candles_held}"
-            )
-
-            print(
-                f"  Quantity:     {quantity}"
-            )
-
-            print(
-                f"  Risk / Reward:{risk_reward:.2f}"
-            )
-
-        # =================================================
-        # WORST TRADES
-        # =================================================
-
-        sorted_trades = sorted(
-            trades,
-            key=lambda trade:
-            float(
-                getattr(
-                    trade,
-                    "profit_loss",
-                    0.0
-                )
-            )
-        )
-
-        print()
-
-        print(
-            "WORST 5 TRADES"
-        )
-
-        for trade in sorted_trades[:5]:
-
-            print(
-                f"  "
-                f"{getattr(trade, 'direction', 'UNKNOWN')} "
-                f"| "
-                f"{getattr(trade, 'strategy', 'UNKNOWN')} "
-                f"| "
-                f"{getattr(trade, 'exit_reason', 'UNKNOWN')} "
-                f"| "
-                f"P/L {float(getattr(trade, 'profit_loss', 0.0)):.2f} "
-                f"| "
-                f"Held {getattr(trade, 'candles_held', 0)}"
-            )
-
-        # =================================================
-        # BEST TRADES
-        # =================================================
-
-        print()
-
-        print(
-            "BEST 5 TRADES"
-        )
-
-        for trade in reversed(
-            sorted_trades[-5:]
-        ):
-
-            print(
-                f"  "
-                f"{getattr(trade, 'direction', 'UNKNOWN')} "
-                f"| "
-                f"{getattr(trade, 'strategy', 'UNKNOWN')} "
-                f"| "
-                f"{getattr(trade, 'exit_reason', 'UNKNOWN')} "
-                f"| "
-                f"P/L {float(getattr(trade, 'profit_loss', 0.0)):.2f} "
-                f"| "
-                f"Held {getattr(trade, 'candles_held', 0)}"
-            )
-
-    # =====================================================
-    # REGIME DIAGNOSTICS
-    # =====================================================
-
-    def print_regime_diagnostics(
-        self,
-        validation_dataframe,
-    ):
-
-        print()
-
-        print(
-            "REGIME DIAGNOSTICS"
-        )
+            regime = "UNKNOWN"
 
         try:
 
-            regime = (
-                self.regime_detector.analyse(
-                    validation_dataframe
-                )
+            confidence = float(
+                confidence
             )
 
-            print(
-                f"  Overall regime: "
-                f"{regime}"
-            )
-
-        except Exception as exc:
-
-            print(
-                "  Regime analysis failed: "
-                f"{type(exc).__name__}: {exc}"
-            )
-
-    # =====================================================
-    # RUN
-    # =====================================================
-
-    def run(self):
-
-        dataframe = self.load_data()
-
-        windows = self.window_generator.generate(
-            dataframe
-        )
-
-        if self.max_windows:
-
-            windows = windows[
-                :self.max_windows
-            ]
-
-        print()
-
-        print(
-            f"Windows Generated: {len(windows)}"
-        )
-
-        results = []
-
-        for number, window in enumerate(
-            windows,
-            start=1
+        except (
+            TypeError,
+            ValueError,
         ):
+
+            confidence = 0.0
+
+        return (
+            str(regime),
+            confidence,
+        )
+
+    # ========================================================
+    # SAVE RESULT
+    # ========================================================
+
+    def save_result(
+        self,
+        result: ValidationWindowResult,
+    ):
+
+        payload = {
+
+            "window_id":
+                result.window_id,
+
+            "training":
+                result.training,
+
+            "validation":
+                result.validation,
+
+            "parameters":
+                result.parameters,
+
+            "verdict":
+                result.verdict,
+
+        }
+
+        try:
+
+            self.database.save(
+
+                self.symbol,
+
+                payload,
+
+            )
+
+        except Exception as error:
 
             print()
 
             print(
-                "=" * 60
+                "WARNING: Unable to save "
+                "validation result:"
             )
 
             print(
-                f"WALK FORWARD WINDOW {number}"
+                f"  {type(error).__name__}: "
+                f"{error}"
             )
 
-            print(
-                "=" * 60
-            )
+    # ========================================================
+    # PROCESS WINDOW
+    # ========================================================
 
-            result = self.validate_window(
-                window,
-                window_number=number,
-            )
-
-            results.append(
-                result
-            )
-
-            try:
-
-                self.database.save(
-                    self.symbol,
-                    result
-                )
-
-            except Exception:
-
-                pass
-
-        self.print_final_summary(
-            results
-        )
-
-        return results
-
-    # =====================================================
-    # VALIDATE WINDOW
-    # =====================================================
-
-    def validate_window(
+    def process_window(
         self,
         window,
-        window_number=None,
+        window_id: int,
     ):
 
         print()
 
         print(
-            "Optimising training period..."
+            "===================================================="
         )
 
-        training_results = self.optimizer.optimise(
-            window.training,
-            self.symbol
+        print(
+            f"WALK-FORWARD WINDOW {window_id}"
         )
 
-        # -------------------------------------------------
-        # No optimisation results
-        # -------------------------------------------------
+        print(
+            "===================================================="
+        )
 
-        if not training_results:
+        print(
+            f"Training candles: "
+            f"{len(window.training)}"
+        )
 
-            return {
+        print(
+            f"Validation candles: "
+            f"{len(window.validation)}"
+        )
 
-                "symbol":
+        # ====================================================
+        # TRAINING
+        # ====================================================
+
+        print()
+
+        print(
+            "Optimising TRAINING data..."
+        )
+
+        optimisation_results = (
+            self.optimizer.optimise(
+
+                dataset=
+                    window.training,
+
+                symbol=
                     self.symbol,
 
-                "verdict":
-                    "FAIL",
-
-                "reason":
-                    "NO_RESULTS",
-
-                "failure_reasons":
-                    [
-                        "NO_RESULTS"
-                    ],
-
-                "parameters":
-                    {},
-
-                "validation":
-                    {},
-
-                "metrics":
-                    {},
-
-                "regime":
-                    {},
-            }
-
-        # -------------------------------------------------
-        # Select best training configuration
-        # -------------------------------------------------
-
-        best = max(
-            training_results,
-            key=lambda x:
-            x.get(
-                "ranking_score",
-                x.get(
-                    "profit",
-                    0
-                )
             )
         )
 
-        # -------------------------------------------------
-        # Lock parameters
-        # -------------------------------------------------
+        if not optimisation_results:
+
+            print()
+
+            print(
+                "WINDOW FAILED: "
+                "No optimisation results."
+            )
+
+            return None
+
+        # ====================================================
+        # SELECT BEST
+        # ====================================================
+
+        best = (
+            self.select_best_configuration(
+                optimisation_results
+            )
+        )
+
+        if best is None:
+
+            print()
+
+            print(
+                "WINDOW FAILED: "
+                "No valid training configuration."
+            )
+
+            return None
+
+        # ====================================================
+        # LOCK PARAMETERS
+        # ====================================================
 
         parameters = {
 
             "score_threshold":
                 best.get(
                     "score_threshold",
-                    40
+                    40,
                 ),
 
             "confidence":
                 best.get(
                     "confidence",
-                    0.40
+                    0.40,
                 ),
 
             "atr_stop":
                 best.get(
                     "atr_stop",
-                    3.0
+                    2.0,
                 ),
 
             "atr_target":
                 best.get(
                     "atr_target",
-                    5.0
+                    4.0,
                 ),
+
         }
 
         print()
@@ -1083,541 +1348,844 @@ class WalkForwardValidator:
         )
 
         print(
-            parameters
+            f"Score threshold: "
+            f"{parameters['score_threshold']}"
         )
 
-        # -------------------------------------------------
-        # Training configuration diagnostics
-        # -------------------------------------------------
+        print(
+            f"Confidence: "
+            f"{parameters['confidence']}"
+        )
+
+        print(
+            f"ATR stop: "
+            f"{parameters['atr_stop']}"
+        )
+
+        print(
+            f"ATR target: "
+            f"{parameters['atr_target']}"
+        )
+
+        # ====================================================
+        # TRAINING RESULT
+        # ====================================================
+
+        training_result = best.get(
+            "result"
+        )
+
+        if not isinstance(
+            training_result,
+            dict,
+        ):
+
+            training_result = best
+
+        # ====================================================
+        # UNSEEN VALIDATION
+        # ====================================================
 
         print()
 
         print(
-            "TRAINING WINNING CONFIGURATION"
+            "Testing unseen VALIDATION data..."
         )
 
-        print(
-            f"  Ranking score: "
-            f"{best.get('ranking_score', 0):.2f}"
+        validation_result = (
+            self.run_validation_backtest(
+
+                validation_dataframe=
+                    window.validation,
+
+                parameters=
+                    parameters,
+
+            )
         )
 
-        print(
-            f"  Training profit: "
-            f"{best.get('profit', 0):.2f}"
+        # ====================================================
+        # REGIME
+        # ====================================================
+
+        regime, regime_confidence = (
+            self.analyse_regime(
+                window.validation
+            )
         )
 
-        print(
-            f"  Training trades: "
-            f"{best.get('trades', best.get('total_trades', 0))}"
-        )
+        # ====================================================
+        # VERDICT
+        # ====================================================
 
-        print(
-            f"  Training win rate: "
-            f"{best.get('win_rate', 0):.2f}%"
-        )
-
-        print(
-            f"  Training profit factor: "
-            f"{best.get('profit_factor', 0):.2f}"
-        )
-
-        print(
-            f"  Training max drawdown: "
-            f"{best.get('max_drawdown', 0):.2f}%"
-        )
-
-        # -------------------------------------------------
-        # Unseen validation
-        # -------------------------------------------------
-
-        print()
-
-        print(
-            "Testing unseen validation data..."
-        )
-
-        engine = BacktestEngine(
-            starting_cash=self.starting_cash,
-
-            minimum_score=
-                parameters[
-                    "score_threshold"
-                ],
-
-            minimum_confidence=
-                parameters[
-                    "confidence"
-                ],
-
-            atr_stop=
-                parameters[
-                    "atr_stop"
-                ],
-
-            atr_target=
-                parameters[
-                    "atr_target"
-                ],
-        )
-
-        validation_result = engine.run(
-            symbol=self.symbol,
-            dataframe=window.validation,
-        )
-
-        # -------------------------------------------------
-        # Detailed trade diagnostics
-        # -------------------------------------------------
-
-        self.print_trade_diagnostics(
-            validation_result,
-            window_number=window_number,
-        )
-
-        # -------------------------------------------------
-        # Regime diagnostics
-        # -------------------------------------------------
-
-        self.print_regime_diagnostics(
-            window.validation
-        )
-
-        # -------------------------------------------------
-        # Calculate validation metrics
-        # -------------------------------------------------
-
-        metrics = ValidationMetrics.from_result(
+        verdict = self.determine_verdict(
             validation_result
         )
 
+        # ====================================================
+        # ROBUSTNESS
+        # ====================================================
+
         robustness_score = (
-            metrics.robustness_score()
+            self.calculate_robustness_score(
+
+                training=
+                    training_result,
+
+                validation=
+                    validation_result,
+
+            )
         )
 
-        # -------------------------------------------------
-        # Determine classification
-        # -------------------------------------------------
+        # ====================================================
+        # RESULT
+        # ====================================================
 
-        verdict = metrics.classification()
+        result = ValidationWindowResult(
 
-        # -------------------------------------------------
-        # Failure / warning reasons
-        # -------------------------------------------------
+            window_id=
+                window_id,
 
-        failure_reasons = (
-            metrics.failure_reasons()
+            parameters=
+                parameters,
+
+            training=
+                training_result,
+
+            validation=
+                validation_result,
+
+            verdict=
+                verdict,
+
+            robustness_score=
+                robustness_score,
+
+            regime=
+                regime,
+
+            regime_confidence=
+                regime_confidence,
+
         )
 
-        performance_failures = (
-            metrics.performance_failure_reasons()
+        self.results.append(
+            result
         )
 
-        # -------------------------------------------------
-        # Output metrics
-        # -------------------------------------------------
+        self.save_result(
+            result
+        )
+
+        # ====================================================
+        # REPORT WINDOW
+        # ====================================================
 
         print()
 
         print(
-            "=" * 60
+            "VALIDATION RESULT"
         )
-
-        print(
-            "VALIDATION METRICS"
-        )
-
-        print(
-            "=" * 60
-        )
-
-        print()
 
         print(
             f"Profit: "
-            f"{metrics.profit:.2f}"
+            f"{self.get_profit(validation_result):.2f}"
         )
 
         print(
             f"Trades: "
-            f"{metrics.total_trades}"
+            f"{self.get_trade_count(validation_result)}"
         )
 
         print(
-            f"Win Rate: "
-            f"{metrics.win_rate:.2f}%"
+            f"Win rate: "
+            f"{self.get_win_rate(validation_result):.2f}%"
         )
 
         print(
-            f"Profit Factor: "
-            f"{metrics.profit_factor:.2f}"
+            f"Profit factor: "
+            f"{self.get_profit_factor(validation_result):.2f}"
         )
 
-        # -------------------------------------------------
-        # Show capped PF used for scoring when necessary
-        # -------------------------------------------------
-
-        scoring_profit_factor = min(
-            max(
-                metrics.profit_factor,
-                0.0
-            ),
-            4.0
+        print(
+            f"Max drawdown: "
+            f"{self.get_drawdown(validation_result):.2f}%"
         )
 
-        if (
-            metrics.profit_factor
-            != scoring_profit_factor
-        ):
+        print(
+            f"Regime: {regime}"
+        )
 
-            print(
-                f"Scoring Profit Factor: "
-                f"{scoring_profit_factor:.2f}"
+        print(
+            f"Regime confidence: "
+            f"{regime_confidence:.2f}"
+        )
+
+        print(
+            f"Robustness score: "
+            f"{robustness_score:.2f}/100"
+        )
+
+        print(
+            f"VERDICT: {verdict}"
+        )
+
+        return result
+
+    # ========================================================
+    # COMBINED VALIDATION PERFORMANCE
+    # ========================================================
+
+    def combined_validation_performance(
+        self,
+    ):
+
+        validation_results = [
+            result.validation
+            for result in self.results
+        ]
+
+        total_trades = sum(
+            self.get_trade_count(
+                result
+            )
+            for result in validation_results
+        )
+
+        total_profit = sum(
+            self.get_profit(
+                result
+            )
+            for result in validation_results
+        )
+
+        wins = 0
+        losses = 0
+
+        gross_profit = 0.0
+        gross_loss = 0.0
+
+        for result in validation_results:
+
+            trades = result.get(
+                "trade_list",
+                [],
             )
 
+            if not isinstance(
+                trades,
+                list,
+            ):
+
+                continue
+
+            for trade in trades:
+
+                try:
+
+                    if isinstance(
+                        trade,
+                        dict,
+                    ):
+
+                        pnl = float(
+                            trade.get(
+                                "profit_loss",
+                                trade.get(
+                                    "pnl",
+                                    0,
+                                ),
+                            )
+                        )
+
+                    else:
+
+                        pnl = float(
+                            getattr(
+                                trade,
+                                "profit_loss",
+                                0,
+                            )
+                        )
+
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+
+                    continue
+
+                if pnl > 0:
+
+                    wins += 1
+
+                    gross_profit += pnl
+
+                elif pnl < 0:
+
+                    losses += 1
+
+                    gross_loss += abs(
+                        pnl
+                    )
+
+        # ----------------------------------------------------
+        # Fallback
+        # ----------------------------------------------------
+
+        if (
+            wins + losses == 0
+            and total_trades > 0
+        ):
+
+            rates = [
+
+                self.get_win_rate(
+                    result
+                )
+
+                for result in validation_results
+
+            ]
+
+            if rates:
+
+                average_win_rate = (
+                    sum(rates)
+                    /
+                    len(rates)
+                )
+
+            else:
+
+                average_win_rate = 0.0
+
+            wins = round(
+                total_trades
+                *
+                average_win_rate
+                /
+                100.0
+            )
+
+            losses = (
+                total_trades
+                -
+                wins
+            )
+
+        # ----------------------------------------------------
+        # Profit factor
+        # ----------------------------------------------------
+
+        if gross_loss > 0:
+
+            profit_factor = (
+                gross_profit
+                /
+                gross_loss
+            )
+
+        else:
+
+            profit_factor = 0.0
+
+        # ----------------------------------------------------
+        # Win rate
+        # ----------------------------------------------------
+
+        if total_trades > 0:
+
+            win_rate = (
+                wins
+                /
+                total_trades
+                *
+                100.0
+            )
+
+        else:
+
+            win_rate = 0.0
+
+        # ----------------------------------------------------
+        # Average trade
+        # ----------------------------------------------------
+
+        if total_trades > 0:
+
+            average_trade = (
+                total_profit
+                /
+                total_trades
+            )
+
+        else:
+
+            average_trade = 0.0
+
+        # ----------------------------------------------------
+        # Drawdown
+        # ----------------------------------------------------
+
+        drawdowns = [
+
+            self.get_drawdown(
+                result
+            )
+
+            for result in validation_results
+
+        ]
+
+        max_drawdown = (
+            max(drawdowns)
+            if drawdowns
+            else 0.0
+        )
+
+        return {
+
+            "profit":
+                round(
+                    total_profit,
+                    2,
+                ),
+
+            "net_profit":
+                round(
+                    total_profit,
+                    2,
+                ),
+
+            "total_trades":
+                total_trades,
+
+            "trades":
+                total_trades,
+
+            "wins":
+                wins,
+
+            "losses":
+                losses,
+
+            "win_rate":
+                round(
+                    win_rate,
+                    2,
+                ),
+
+            "profit_factor":
+                round(
+                    profit_factor,
+                    2,
+                ),
+
+            "average_trade":
+                round(
+                    average_trade,
+                    2,
+                ),
+
+            "max_drawdown":
+                round(
+                    max_drawdown,
+                    2,
+                ),
+
+        }
+
+    # ========================================================
+    # FINAL REPORT
+    # ========================================================
+
+    def report(
+        self,
+    ):
+
+        total_windows = len(
+            self.results
+        )
+
+        passed = sum(
+
+            1
+
+            for result in self.results
+
+            if result.verdict == "PASS"
+
+        )
+
+        failed = (
+            total_windows
+            -
+            passed
+        )
+
+        if total_windows > 0:
+
+            pass_rate = (
+                passed
+                /
+                total_windows
+                *
+                100.0
+            )
+
+        else:
+
+            pass_rate = 0.0
+
+        combined = (
+            self.combined_validation_performance()
+        )
+
+        if self.results:
+
+            robustness = (
+                sum(
+                    result.robustness_score
+                    for result in self.results
+                )
+                /
+                len(
+                    self.results
+                )
+            )
+
+        else:
+
+            robustness = 0.0
+
+        print()
+
         print(
-            f"Max Drawdown: "
-            f"{metrics.max_drawdown:.2f}%"
+            "===================================================="
         )
 
         print(
-            f"Robustness Score: "
-            f"{robustness_score:.1f}/100"
+            "FINAL WALK FORWARD REPORT"
+        )
+
+        print(
+            "===================================================="
         )
 
         print()
 
         print(
-            f"RESULT: {verdict}"
+            f"Total Windows: {total_windows}"
         )
 
-        # -------------------------------------------------
-        # Sample warning
-        # -------------------------------------------------
+        print(
+            f"Passed: {passed}"
+        )
 
-        if not metrics.sample_is_sufficient():
+        print(
+            f"Failed: {failed}"
+        )
 
-            print()
+        print(
+            f"Pass Rate: {pass_rate:.1f}%"
+        )
 
-            print(
-                "STATISTICAL WARNING"
-            )
+        print()
 
-            print(
-                f"- Only {metrics.total_trades} "
-                f"trades observed"
-            )
+        print(
+            "COMBINED VALIDATION PERFORMANCE"
+        )
 
-            print(
-                f"- Minimum recommended sample: "
-                f"{metrics.MIN_SAMPLE_SIZE}"
-            )
+        print(
+            f"Profit: "
+            f"{combined['profit']:.2f}"
+        )
 
-            print(
-                "- Performance is promising, but "
-                "statistical confidence is limited."
-            )
+        print(
+            f"Trades: "
+            f"{combined['total_trades']}"
+        )
 
-        # -------------------------------------------------
-        # Failure reasons
-        # -------------------------------------------------
+        print(
+            f"Win Rate: "
+            f"{combined['win_rate']:.2f}%"
+        )
 
-        if failure_reasons:
+        print(
+            f"Profit Factor: "
+            f"{combined['profit_factor']:.2f}"
+        )
 
-            print()
+        print(
+            f"Average Trade: "
+            f"{combined['average_trade']:.2f}"
+        )
 
-            print(
-                "VALIDATION DIAGNOSTICS"
-            )
+        print(
+            f"Maximum Window Drawdown: "
+            f"{combined['max_drawdown']:.2f}%"
+        )
 
-            for reason in failure_reasons:
+        print()
 
-                if (
-                    reason
-                    == "INSUFFICIENT_SAMPLE"
-                ):
+        print(
+            f"Robustness Score: "
+            f"{robustness:.1f}/100"
+        )
 
-                    print(
-                        "- "
-                        f"{reason} "
-                        "(warning)"
-                    )
+        # ----------------------------------------------------
+        # Regimes
+        # ----------------------------------------------------
 
-                else:
+        regime_counts = {}
 
-                    print(
-                        f"- {reason}"
-                    )
+        for result in self.results:
 
-        else:
+            regime = result.regime
 
-            print()
-
-            print(
-                "NO FAILURE REASONS"
-            )
-
-        # -------------------------------------------------
-        # Regime object for persistence
-        # -------------------------------------------------
-
-        try:
-
-            regime = (
-                self.regime_detector.analyse(
-                    window.validation
+            regime_counts[regime] = (
+                regime_counts.get(
+                    regime,
+                    0,
                 )
+                + 1
             )
 
-        except Exception:
+        if regime_counts:
 
-            regime = {}
+            print()
 
-        # -------------------------------------------------
-        # Return complete result
-        # -------------------------------------------------
+            print(
+                "REGIME ANALYSIS"
+            )
+
+            for regime, count in (
+                regime_counts.items()
+            ):
+
+                regime_results = [
+
+                    result
+
+                    for result in self.results
+
+                    if result.regime == regime
+
+                ]
+
+                regime_passes = sum(
+
+                    1
+
+                    for result in regime_results
+
+                    if result.verdict == "PASS"
+
+                )
+
+                print(
+                    f"{regime}: "
+                    f"{count} windows | "
+                    f"{regime_passes} passes"
+                )
+
+        print()
+
+        print(
+            "===================================================="
+        )
 
         return {
 
-            "symbol":
-                self.symbol,
+            "total_windows":
+                total_windows,
 
-            "parameters":
-                parameters,
+            "passed":
+                passed,
 
-            "training_best":
-                best,
+            "failed":
+                failed,
 
-            "validation":
-                validation_result,
+            "pass_rate":
+                round(
+                    pass_rate,
+                    2,
+                ),
 
-            "metrics":
-                metrics.to_dict(),
+            "combined":
+                combined,
 
-            "regime":
-                regime,
+            "robustness_score":
+                round(
+                    robustness,
+                    2,
+                ),
 
-            "verdict":
-                verdict,
+            "regimes":
+                regime_counts,
 
-            "failure_reasons":
-                failure_reasons,
-
-            "performance_failure_reasons":
-                performance_failures,
-
-            "sample_sufficient":
-                metrics.sample_is_sufficient(),
+            "results":
+                self.results,
 
         }
 
-    # =====================================================
-    # FINAL SUMMARY
-    # =====================================================
+    # ========================================================
+    # RUN
+    # ========================================================
 
-    def print_final_summary(
+    def run(
         self,
-        results,
+        dataframe=None,
     ):
 
         print()
 
         print(
-            "=" * 60
+            "===================================================="
         )
 
         print(
-            "FINAL SUMMARY"
+            "ATLAS 4.6 WALK FORWARD VALIDATION"
         )
 
         print(
-            "=" * 60
-        )
-
-        # -------------------------------------------------
-        # Classification counts
-        # -------------------------------------------------
-
-        passed = sum(
-            1
-            for result in results
-            if result.get(
-                "verdict"
-            ) == "PASS"
-        )
-
-        low_sample = sum(
-            1
-            for result in results
-            if result.get(
-                "verdict"
-            ) == "PASS_LOW_SAMPLE"
-        )
-
-        failed = sum(
-            1
-            for result in results
-            if result.get(
-                "verdict"
-            ) == "FAIL"
+            "===================================================="
         )
 
         print()
 
         print(
-            f"PASS: "
-            f"{passed}/{len(results)}"
+            f"Symbol: {self.symbol}"
         )
 
         print(
-            f"PASS_LOW_SAMPLE: "
-            f"{low_sample}/{len(results)}"
+            f"Starting cash: "
+            f"{self.starting_cash:.2f}"
         )
 
-        print(
-            f"FAIL: "
-            f"{failed}/{len(results)}"
+        # ====================================================
+        # DATA
+        # ====================================================
+
+        if dataframe is None:
+
+            dataframe = self.load_data()
+
+        if dataframe is None:
+
+            return None
+
+        # ====================================================
+        # WINDOWS
+        # ====================================================
+
+        windows = (
+            self.window_generator.generate(
+                dataframe
+            )
         )
 
-        # -------------------------------------------------
-        # Overall interpretation
-        # -------------------------------------------------
-
-        if failed == 0 and low_sample == 0:
+        if not windows:
 
             print()
 
             print(
-                "OVERALL RESULT: PASS"
+                "WALK-FORWARD ABORTED: "
+                "No validation windows generated."
             )
 
-        elif failed == 0:
+            return None
 
-            print()
+        # ====================================================
+        # LIMIT
+        # ====================================================
 
-            print(
-                "OVERALL RESULT: "
-                "PROMISING / LOW SAMPLE"
-            )
+        if self.max_windows is not None:
 
-        else:
+            try:
 
-            print()
+                limit = int(
+                    self.max_windows
+                )
 
-            print(
-                "OVERALL RESULT: FAIL"
-            )
+            except (
+                TypeError,
+                ValueError,
+            ):
 
-        # -------------------------------------------------
-        # Window summary
-        # -------------------------------------------------
+                limit = 0
+
+            if limit > 0:
+
+                windows = windows[
+                    :limit
+                ]
+
+        # ====================================================
+        # PROCESS
+        # ====================================================
 
         print()
 
         print(
-            "WINDOW SUMMARY"
+            f"Windows to validate: "
+            f"{len(windows)}"
         )
 
-        for number, result in enumerate(
-            results,
-            start=1
+        for window_number, window in enumerate(
+            windows,
+            start=1,
         ):
 
-            metrics = result.get(
-                "metrics",
-                {}
-            )
+            try:
 
-            verdict = result.get(
-                "verdict",
-                "FAIL"
-            )
+                result = self.process_window(
 
-            reasons = result.get(
-                "failure_reasons",
-                []
-            )
+                    window=
+                        window,
 
-            parameters = result.get(
-                "parameters",
-                {}
-            )
+                    window_id=
+                        window_number,
 
-            regime = result.get(
-                "regime",
-                {}
-            )
+                )
 
-            print()
+                if result is None:
 
-            print(
-                f"Window {number}: "
-                f"{verdict}"
-            )
+                    print()
 
-            print(
-                f"  Locked parameters: "
-                f"{parameters}"
-            )
-
-            print(
-                f"  Regime: "
-                f"{regime}"
-            )
-
-            print(
-                f"  Profit: "
-                f"{metrics.get('profit', 0):.2f}"
-            )
-
-            print(
-                f"  Trades: "
-                f"{metrics.get('total_trades', 0)}"
-            )
-
-            print(
-                f"  Win Rate: "
-                f"{metrics.get('win_rate', 0):.2f}%"
-            )
-
-            print(
-                f"  Profit Factor: "
-                f"{metrics.get('profit_factor', 0):.2f}"
-            )
-
-            print(
-                f"  Max Drawdown: "
-                f"{metrics.get('max_drawdown', 0):.2f}%"
-            )
-
-            print(
-                f"  Robustness: "
-                f"{metrics.get('robustness_score', 0):.1f}/100"
-            )
-
-            print(
-                f"  Sample Sufficient: "
-                f"{metrics.get('sample_sufficient', False)}"
-            )
-
-            if reasons:
-
-                print(
-                    "  Diagnostics: "
-                    + ", ".join(
-                        reasons
+                    print(
+                        f"Window "
+                        f"{window_number} "
+                        f"could not be completed."
                     )
-                )
 
-            else:
+            except Exception as error:
+
+                print()
 
                 print(
-                    "  Diagnostics: NONE"
+                    f"Window "
+                    f"{window_number} "
+                    f"ERROR: "
+                    f"{type(error).__name__}: "
+                    f"{error}"
                 )
 
+                continue
 
-# =========================================================
+        # ====================================================
+        # REPORT
+        # ====================================================
+
+        return self.report()
+
+
+# ============================================================
 # MAIN
-# =========================================================
+# ============================================================
+
 
 if __name__ == "__main__":
 
@@ -1625,7 +2193,25 @@ if __name__ == "__main__":
 
         symbol="SPY",
 
-        max_windows=6,
+        starting_cash=100000.0,
+
+        # ----------------------------------------------------
+        # Atlas 4.6 whitepaper settings
+        # ----------------------------------------------------
+
+        training_size=500,
+
+        validation_size=250,
+
+        step_size=100,
+
+        expanding=True,
+
+        # ----------------------------------------------------
+        # None = every generated window
+        # ----------------------------------------------------
+
+        max_windows=None,
 
     )
 

@@ -1,27 +1,15 @@
 """
-Atlas AI Trading Platform 4.2
+Atlas AI Trading Platform 4.6
 
-Adaptive Trend Strategy
+Institutional Trend Strategy
 
-Designed for:
+Entry philosophy:
 
-- strong directional markets
-- trend continuation
-- pullback entries
-- momentum confirmation
+Trade WITH the trend,
+enter ON the pullback,
+confirm WITH price and volume.
 
-Atlas 4.2 improvements:
-
-- Separate LONG and SHORT scoring
-- Directional RSI confirmation
-- Directional pullback confirmation
-- Directional MACD confirmation
-- EMA200 macro trend confirmation
-- ADX trend-strength confirmation
-- EMA slope confirmation
-- Anti-chasing protection
-- Directional volume confirmation
-- Cleaner confidence calculation
+Returns a normalised signal dictionary.
 """
 
 from __future__ import annotations
@@ -31,387 +19,163 @@ import pandas as pd
 
 class TrendStrategy:
 
-    name = "TrendStrategy"
+    NAME = "TrendStrategy"
 
     def generate_signal(
         self,
-        dataframe,
+        dataframe: pd.DataFrame,
     ):
 
-        if dataframe is None or len(dataframe) < 20:
+        if dataframe is None or len(dataframe) < 220:
+            return None
+
+        df = dataframe.copy()
+
+        close = df["Close"]
+        high = df["High"]
+        low = df["Low"]
+        open_ = df["Open"]
+
+        volume = (
+            df["Volume"]
+            if "Volume" in df.columns
+            else pd.Series([0] * len(df))
+        )
+
+        ema20 = close.ewm(span=20, adjust=False).mean()
+        ema50 = close.ewm(span=50, adjust=False).mean()
+        ema200 = close.ewm(span=200, adjust=False).mean()
+
+        delta = close.diff()
+
+        gain = delta.clip(lower=0).rolling(14).mean()
+        loss = (-delta.clip(upper=0)).rolling(14).mean()
+
+        rs = gain / loss.replace(0, 1e-9)
+        rsi = 100 - (100 / (1 + rs))
+
+        price = close.iloc[-1]
+
+        # =====================================================
+        # LONG TREND FILTER
+        # =====================================================
+
+        bullish_trend = (
+            price > ema200.iloc[-1]
+            and ema20.iloc[-1] > ema50.iloc[-1]
+            and ema50.iloc[-1] > ema200.iloc[-1]
+        )
+
+        bearish_trend = (
+            price < ema200.iloc[-1]
+            and ema20.iloc[-1] < ema50.iloc[-1]
+            and ema50.iloc[-1] < ema200.iloc[-1]
+        )
+
+        # =====================================================
+        # PULLBACK
+        # =====================================================
+
+        pullback_long = (
+            low.iloc[-1] <= ema20.iloc[-1] * 1.003
+        )
+
+        pullback_short = (
+            high.iloc[-1] >= ema20.iloc[-1] * 0.997
+        )
+
+        # =====================================================
+        # REJECTION CANDLE
+        # =====================================================
+
+        bullish_rejection = (
+            close.iloc[-1] > open_.iloc[-1]
+            and low.iloc[-1] < low.iloc[-2]
+        )
+
+        bearish_rejection = (
+            close.iloc[-1] < open_.iloc[-1]
+            and high.iloc[-1] > high.iloc[-2]
+        )
+
+        # =====================================================
+        # VOLUME
+        # =====================================================
+
+        avg_volume = volume.rolling(20).mean()
+
+        volume_ok = (
+            volume.iloc[-1]
+            >= avg_volume.iloc[-1]
+        )
+
+        # =====================================================
+        # RSI
+        # =====================================================
+
+        rsi_now = float(rsi.iloc[-1])
+
+        long_momentum = 52 <= rsi_now <= 68
+        short_momentum = 32 <= rsi_now <= 48
+
+        # =====================================================
+        # BUY
+        # =====================================================
+
+        if (
+            bullish_trend
+            and pullback_long
+            and bullish_rejection
+            and volume_ok
+            and long_momentum
+        ):
+
+            score = 60
+
+            score += 10 if rsi_now > 58 else 0
+            score += 10 if volume.iloc[-1] > avg_volume.iloc[-1] * 1.2 else 0
+            score += 10 if price > ema20.iloc[-1] else 0
+
+            confidence = min(score / 100, 0.95)
 
             return {
-                "signal": "HOLD",
-                "score": 0,
-                "confidence": 0.0,
-                "strategy": self.name,
+                "signal": "BUY",
+                "score": score,
+                "confidence": confidence,
+                "strategy": self.NAME,
+                "reason": "EMA pullback continuation",
             }
 
-        latest = dataframe.iloc[-1]
-
-        long_score = 0
-        short_score = 0
-
-        long_confirmations = 0
-        short_confirmations = 0
-
         # =====================================================
-        # EMA STRUCTURE
-        # =====================================================
-
-        if all(
-            column in dataframe.columns
-            for column in [
-                "EMA_20",
-                "EMA_50",
-            ]
-        ):
-
-            ema20 = float(latest["EMA_20"])
-            ema50 = float(latest["EMA_50"])
-
-            if pd.notna(ema20) and pd.notna(ema50):
-
-                if ema20 > ema50:
-
-                    long_score += 25
-                    long_confirmations += 1
-
-                elif ema20 < ema50:
-
-                    short_score += 25
-                    short_confirmations += 1
-
-        # =====================================================
-        # EMA200 MACRO TREND
-        # =====================================================
-
-        if "EMA_200" in dataframe.columns:
-
-            price = float(latest["Close"])
-            ema200 = float(latest["EMA_200"])
-
-            if pd.notna(ema200):
-
-                if price > ema200:
-
-                    long_score += 20
-                    long_confirmations += 1
-
-                elif price < ema200:
-
-                    short_score += 20
-                    short_confirmations += 1
-
-        # =====================================================
-        # ADX TREND QUALITY
-        # =====================================================
-
-        if "ADX" in dataframe.columns:
-
-            adx = latest["ADX"]
-
-            if pd.notna(adx):
-
-                adx = float(adx)
-
-                if adx >= 25:
-
-                    long_score += 15
-                    short_score += 15
-
-                    long_confirmations += 1
-                    short_confirmations += 1
-
-                elif adx < 15:
-
-                    long_score -= 15
-                    short_score -= 15
-
-        # =====================================================
-        # EMA SLOPE
+        # SELL
         # =====================================================
 
         if (
-            "EMA_20" in dataframe.columns
-            and len(dataframe) >= 10
+            bearish_trend
+            and pullback_short
+            and bearish_rejection
+            and volume_ok
+            and short_momentum
         ):
 
-            current = latest["EMA_20"]
-            previous = dataframe["EMA_20"].iloc[-10]
-
-            if (
-                pd.notna(current)
-                and pd.notna(previous)
-            ):
-
-                if current > previous:
-
-                    long_score += 10
-                    long_confirmations += 1
-
-                elif current < previous:
-
-                    short_score += 10
-                    short_confirmations += 1
-
-        # =====================================================
-        # PULLBACK QUALITY
-        #
-        # A good trend entry should be close to EMA20,
-        # but not excessively extended.
-        # =====================================================
-
-        if "EMA_20" in dataframe.columns:
-
-            close = float(latest["Close"])
-            ema20 = float(latest["EMA_20"])
-
-            if ema20 != 0:
-
-                distance = (
-                    abs(close - ema20)
-                    / abs(ema20)
-                )
-
-                # Price above EMA20 = potential long pullback
-                if close >= ema20:
-
-                    if distance <= 0.02:
-
-                        long_score += 15
-                        long_confirmations += 1
-
-                    elif distance > 0.06:
-
-                        long_score -= 25
-
-                # Price below EMA20 = potential short pullback
-                elif close < ema20:
-
-                    if distance <= 0.02:
-
-                        short_score += 15
-                        short_confirmations += 1
-
-                    elif distance > 0.06:
-
-                        short_score -= 25
-
-        # =====================================================
-        # MACD MOMENTUM
-        # =====================================================
-
-        if all(
-            column in dataframe.columns
-            for column in [
-                "MACD",
-                "MACD_SIGNAL",
-            ]
-        ) and len(dataframe) >= 2:
-
-            macd = latest["MACD"]
-            signal = latest["MACD_SIGNAL"]
-            previous_macd = dataframe["MACD"].iloc[-2]
-
-            if all(
-                pd.notna(value)
-                for value in [
-                    macd,
-                    signal,
-                    previous_macd,
-                ]
-            ):
-
-                # Bullish MACD momentum
-                if (
-                    macd > signal
-                    and macd > previous_macd
-                ):
-
-                    long_score += 15
-                    long_confirmations += 1
-
-                # Bearish MACD momentum
-                elif (
-                    macd < signal
-                    and macd < previous_macd
-                ):
-
-                    short_score += 15
-                    short_confirmations += 1
-
-        # =====================================================
-        # RSI MOMENTUM
-        # =====================================================
-
-        if "RSI" in dataframe.columns:
-
-            rsi = latest["RSI"]
-
-            if pd.notna(rsi):
-
-                rsi = float(rsi)
-
-                # Healthy bullish momentum
-                if 52 <= rsi <= 68:
-
-                    long_score += 15
-                    long_confirmations += 1
-
-                # Bullish but becoming overextended
-                elif 68 < rsi <= 75:
-
-                    long_score += 5
-
-                # Strongly overbought
-                elif rsi > 75:
-
-                    long_score -= 20
-
-                # Healthy bearish momentum
-                elif 32 <= rsi < 48:
-
-                    short_score += 15
-                    short_confirmations += 1
-
-                # Bearish but becoming extended
-                elif 25 <= rsi < 32:
-
-                    short_score += 5
-
-                # Strongly oversold
-                elif rsi < 25:
-
-                    short_score -= 20
-
-        # =====================================================
-        # PRICE MOMENTUM
-        # =====================================================
-
-        if len(dataframe) >= 5:
-
-            current_price = float(
-                dataframe["Close"].iloc[-1]
-            )
-
-            old_price = float(
-                dataframe["Close"].iloc[-5]
-            )
-
-            if current_price > old_price:
-
-                long_score += 10
-                long_confirmations += 1
-
-            elif current_price < old_price:
-
-                short_score += 10
-                short_confirmations += 1
-
-        # =====================================================
-        # VOLUME CONFIRMATION
-        # =====================================================
-
-        if (
-            "Volume" in dataframe.columns
-            and len(dataframe) >= 20
-        ):
-
-            current_volume = latest["Volume"]
-
-            average_volume = (
-                dataframe["Volume"]
-                .iloc[-20:]
-                .mean()
-            )
-
-            if (
-                pd.notna(current_volume)
-                and pd.notna(average_volume)
-                and current_volume > average_volume
-            ):
-
-                # Volume confirms whichever direction
-                # already has the stronger setup.
-                if long_score > short_score:
-
-                    long_score += 5
-                    long_confirmations += 1
-
-                elif short_score > long_score:
-
-                    short_score += 5
-                    short_confirmations += 1
-
-        # =====================================================
-        # FINAL DIRECTIONAL SCORE
-        # =====================================================
-
-        if long_score > short_score:
-
-            score = long_score
-            confirmations = long_confirmations
-            signal = "BUY"
-
-        elif short_score > long_score:
-
-            score = short_score
-            confirmations = short_confirmations
-            signal = "SELL"
-
-        else:
-
-            score = 0
-            confirmations = 0
-            signal = "HOLD"
-
-        # =====================================================
-        # MINIMUM SIGNAL QUALITY
-        # =====================================================
-
-        if signal == "BUY":
-
-            confidence = min(
-                (
-                    score / 100.0
-                    + confirmations * 0.04
-                ),
-                1.0,
-            )
-
-            if score < 60:
-
-                signal = "HOLD"
-
-        elif signal == "SELL":
-
-            confidence = min(
-                (
-                    score / 100.0
-                    + confirmations * 0.04
-                ),
-                1.0,
-            )
-
-            if score < 60:
-
-                signal = "HOLD"
-
-        else:
-
-            confidence = 0.0
-
-        # =====================================================
-        # RETURN
-        # =====================================================
-
-        return {
-            "signal": signal,
-            "score": int(score),
-            "confidence": round(
-                confidence,
-                3,
-            ),
-            "strategy": self.name,
-        }
+            score = 60
+
+            score += 10 if rsi_now < 42 else 0
+            score += 10 if volume.iloc[-1] > avg_volume.iloc[-1] * 1.2 else 0
+            score += 10 if price < ema20.iloc[-1] else 0
+
+            confidence = min(score / 100, 0.95)
+
+            return {
+                "signal": "SELL",
+                "score": score,
+                "confidence": confidence,
+                "strategy": self.NAME,
+                "reason": "EMA pullback continuation",
+            }
+
+        return None
+
+    # Legacy compatibility
+    def generate(self, dataframe):
+        return self.generate_signal(dataframe)

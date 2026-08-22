@@ -1,5 +1,5 @@
 """
-Atlas AI Trading Platform 4.2
+Atlas AI Trading Platform 4.5
 
 Adaptive Volatility Strategy
 
@@ -10,17 +10,8 @@ Designed for:
 - momentum continuation
 - trend-aligned volatility
 
-Atlas 4.2 improvements:
-
-- Separate LONG and SHORT scoring
-- Directional breakout confirmation
-- Directional MACD
-- Directional EMA alignment
-- ATR expansion
-- Bollinger expansion
-- Volume confirmation
-- Anti-chasing filter
-- Stronger breakout validation
+StrategyConfig controls the final minimum score/confidence
+requirements.
 """
 
 from __future__ import annotations
@@ -37,7 +28,28 @@ class VolatilityStrategy:
         dataframe,
     ):
 
-        if dataframe is None or len(dataframe) < 20:
+        if (
+            dataframe is None
+            or len(dataframe) < 20
+        ):
+
+            return {
+                "signal": "HOLD",
+                "score": 0,
+                "confidence": 0.0,
+                "strategy": self.name,
+            }
+
+        required_columns = [
+            "High",
+            "Low",
+            "Close",
+        ]
+
+        if not all(
+            column in dataframe.columns
+            for column in required_columns
+        ):
 
             return {
                 "signal": "HOLD",
@@ -70,8 +82,13 @@ class VolatilityStrategy:
             latest["Close"]
         )
 
-        breakout_up = close > recent_high
-        breakout_down = close < recent_low
+        breakout_up = (
+            close > recent_high
+        )
+
+        breakout_down = (
+            close < recent_low
+        )
 
         if breakout_up:
 
@@ -101,9 +118,9 @@ class VolatilityStrategy:
             ].iloc[-2]
 
             average_width = (
-                dataframe["BB_WIDTH"]
-                .iloc[-20:]
-                .mean()
+                dataframe[
+                    "BB_WIDTH"
+                ].iloc[-20:].mean()
             )
 
             if all(
@@ -115,10 +132,11 @@ class VolatilityStrategy:
                 ]
             ):
 
-                # Expansion from a compressed state
                 if (
-                    current_width > previous_width
-                    and current_width < average_width
+                    current_width
+                    > previous_width
+                    and current_width
+                    < average_width
                 ):
 
                     if breakout_up:
@@ -131,8 +149,10 @@ class VolatilityStrategy:
                         short_score += 15
                         short_confirmations += 1
 
-                # Strong expansion
-                elif current_width > previous_width:
+                elif (
+                    current_width
+                    > previous_width
+                ):
 
                     if breakout_up:
 
@@ -184,8 +204,13 @@ class VolatilityStrategy:
             and "MACD_SIGNAL" in dataframe.columns
         ):
 
-            macd = latest["MACD"]
-            macd_signal = latest["MACD_SIGNAL"]
+            macd = latest[
+                "MACD"
+            ]
+
+            macd_signal = latest[
+                "MACD_SIGNAL"
+            ]
 
             if (
                 pd.notna(macd)
@@ -225,8 +250,13 @@ class VolatilityStrategy:
             and "EMA_50" in dataframe.columns
         ):
 
-            ema20 = latest["EMA_20"]
-            ema50 = latest["EMA_50"]
+            ema20 = latest[
+                "EMA_20"
+            ]
+
+            ema50 = latest[
+                "EMA_50"
+            ]
 
             if (
                 pd.notna(ema20)
@@ -263,7 +293,9 @@ class VolatilityStrategy:
 
         if "EMA_200" in dataframe.columns:
 
-            ema200 = latest["EMA_200"]
+            ema200 = latest[
+                "EMA_200"
+            ]
 
             if pd.notna(ema200):
 
@@ -297,7 +329,9 @@ class VolatilityStrategy:
 
         if "EMA_20" in dataframe.columns:
 
-            ema20 = latest["EMA_20"]
+            ema20 = latest[
+                "EMA_20"
+            ]
 
             if (
                 pd.notna(ema20)
@@ -305,7 +339,9 @@ class VolatilityStrategy:
             ):
 
                 distance = (
-                    abs(close - ema20)
+                    abs(
+                        close - ema20
+                    )
                     / abs(ema20)
                 )
 
@@ -338,12 +374,14 @@ class VolatilityStrategy:
             and len(dataframe) >= 20
         ):
 
-            current_volume = latest["Volume"]
+            current_volume = latest[
+                "Volume"
+            ]
 
             average_volume = (
-                dataframe["Volume"]
-                .iloc[-20:]
-                .mean()
+                dataframe[
+                    "Volume"
+                ].iloc[-20:].mean()
             )
 
             if (
@@ -363,19 +401,43 @@ class VolatilityStrategy:
                     short_confirmations += 1
 
         # =====================================================
+        # NO BREAKOUT = NO VOLATILITY SIGNAL
+        #
+        # This prevents the volatility strategy from producing
+        # directional entries simply because volatility exists.
+        # It must have a directional expansion event.
+        # =====================================================
+
+        if not (
+            breakout_up
+            or breakout_down
+        ):
+
+            return {
+                "signal": "HOLD",
+                "score": 0,
+                "confidence": 0.0,
+                "strategy": self.name,
+            }
+
+        # =====================================================
         # FINAL DIRECTION
         # =====================================================
 
         if long_score > short_score:
 
             score = long_score
-            confirmations = long_confirmations
+            confirmations = (
+                long_confirmations
+            )
             signal = "BUY"
 
         elif short_score > long_score:
 
             score = short_score
-            confirmations = short_confirmations
+            confirmations = (
+                short_confirmations
+            )
             signal = "SELL"
 
         else:
@@ -398,24 +460,24 @@ class VolatilityStrategy:
                 1.0,
             )
 
-            if score < 55:
-
-                signal = "HOLD"
-
         else:
 
             confidence = 0.0
 
-        # =====================================================
-        # RETURN
-        # =====================================================
-
         return {
-            "signal": signal,
-            "score": int(score),
-            "confidence": round(
-                confidence,
-                3,
-            ),
-            "strategy": self.name,
+
+            "signal":
+                signal,
+
+            "score":
+                int(score),
+
+            "confidence":
+                round(
+                    confidence,
+                    3,
+                ),
+
+            "strategy":
+                self.name,
         }
